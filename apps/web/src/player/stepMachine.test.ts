@@ -126,3 +126,13 @@ test("canHint stops at hintCount; canSkip false once revealed", () => {
   a.send({ type: "SKIPPED" });
   assert.equal(canSkip(a.getSnapshot()), false);
 });
+
+test("CONFLICT notice survives the re-sync LOADED, clears on the next HINT", () => {
+  const a = actorAt("hinting");
+  a.send({ type: "CONFLICT", msg: "Take the next hint before trying again." });
+  a.send({ type: "LOADED", step: step({ state: "hinting", attemptAllowed: false }) });
+  assert.equal(val(a), "hinting");
+  assert.equal(a.getSnapshot().context.notice, "Take the next hint before trying again.");
+  a.send({ type: "HINT", hint: hint(1) });
+  assert.equal(a.getSnapshot().context.notice, null);
+});

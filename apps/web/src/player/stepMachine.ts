@@ -102,16 +102,16 @@ export const stepMachine = setup({
   actions: {
     storeLoaded: assign(({ event }) =>
       event.type === "LOADED"
-        ? { step: event.step, hints: event.step.hints, attemptAllowed: event.step.attemptAllowed, notice: null }
+        ? { step: event.step, hints: event.step.hints, attemptAllowed: event.step.attemptAllowed }
         : {},
     ),
     storeResult: assign(({ event }) =>
       event.type === "RESULT"
-        ? { feedback: event.r.feedback, lastCorrect: event.r.correct, attemptAllowed: event.r.attemptAllowed }
+        ? { feedback: event.r.feedback, lastCorrect: event.r.correct, attemptAllowed: event.r.attemptAllowed, notice: null }
         : {},
     ),
     addHint: assign(({ context, event }) =>
-      event.type === "HINT" ? { hints: [...context.hints, event.hint], attemptAllowed: true } : {},
+      event.type === "HINT" ? { hints: [...context.hints, event.hint], attemptAllowed: true, notice: null } : {},
     ),
     storeReveal: assign(({ event }) => (event.type === "REVEAL_LOADED" ? { reveal: event.reveal } : {})),
     setNotice: assign(({ event }) => (event.type === "CONFLICT" ? { notice: event.msg } : {})),
