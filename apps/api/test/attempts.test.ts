@@ -157,3 +157,14 @@ test("empty JSON body with the JSON content-type is accepted", async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().rung, 1);
 });
+
+test("JSON with a __proto__ key is rejected", async () => {
+  const c = await signUp(app);
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/steps/s1/attempts",
+    headers: { cookie: c, "content-type": "application/json" },
+    payload: '{"kind":"mcq","choice":0,"__proto__":{"x":1}}',
+  });
+  assert.equal(res.statusCode, 400);
+});

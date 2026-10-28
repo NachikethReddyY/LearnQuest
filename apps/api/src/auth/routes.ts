@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { env } from "../env.ts";
 import { auth } from "./auth.ts";
 
 // Better Auth's Fastify integration: forward the request as a web Request and copy the Response back.
@@ -7,7 +8,8 @@ export async function authRoutes(api: FastifyInstance) {
     method: ["GET", "POST"],
     url: "/auth/*",
     handler: async (req, reply) => {
-      const url = new URL(req.url, `http://${req.headers.host}`);
+      // Base comes from config, not the client's Host header.
+      const url = new URL(req.url, env.BETTER_AUTH_URL);
       const headers = new Headers();
       for (const [k, v] of Object.entries(req.headers)) {
         if (v !== undefined) headers.append(k, Array.isArray(v) ? v.join(",") : v);

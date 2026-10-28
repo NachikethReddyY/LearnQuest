@@ -30,14 +30,12 @@ export function buildApp() {
   app.register(helmet);
 
   // Empty JSON bodies become undefined so clients that always send the JSON header can POST without a body.
+  // The default parser is kept for everything else: it rejects __proto__/constructor keys.
+  const parseJson = app.getDefaultJsonParser("error", "error");
   app.removeContentTypeParser("application/json");
-  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
     if (body === "") return done(null, undefined);
-    try {
-      done(null, JSON.parse(body as string));
-    } catch {
-      done(Object.assign(new Error("Invalid JSON"), { statusCode: 400 }), undefined);
-    }
+    parseJson(req, body as string, done);
   });
 
   // Origin check instead of a CSRF token: SameSite=Lax cookies plus this hook (docs/api-plan.md §1).
