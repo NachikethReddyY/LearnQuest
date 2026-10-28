@@ -11,7 +11,7 @@ import { gradeMcq } from "../grading/mcq.ts";
 import { fresh, next, type Action, type Progress } from "./machine.ts";
 
 const ErrorBody = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
-const Id = z.object({ id: z.string() });
+const Id = z.object({ id: z.string().regex(/^[\w-]{1,64}$/) });
 const State = z.enum(["predicting", "hinting", "revealed", "skipped"]);
 const Hint = z.object({ rung: z.number(), text: z.string(), eliminate: z.number().optional() });
 const Body = z.discriminatedUnion("kind", [
@@ -95,7 +95,7 @@ function mutate(
 
 export async function attemptRoutes(api: FastifyInstance) {
   const r = api.withTypeProvider<ZodTypeProvider>();
-  const base = { preHandler: requireUser };
+  const base = { onRequest: requireUser };
 
   r.get(
     "/steps/:id",

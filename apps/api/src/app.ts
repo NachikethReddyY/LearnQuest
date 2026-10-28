@@ -29,6 +29,17 @@ export function buildApp() {
   app.setSerializerCompiler(serializerCompiler);
   app.register(helmet);
 
+  // Empty JSON bodies become undefined so clients that always send the JSON header can POST without a body.
+  app.removeContentTypeParser("application/json");
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+    if (body === "") return done(null, undefined);
+    try {
+      done(null, JSON.parse(body as string));
+    } catch {
+      done(Object.assign(new Error("Invalid JSON"), { statusCode: 400 }), undefined);
+    }
+  });
+
   // Origin check instead of a CSRF token: SameSite=Lax cookies plus this hook (docs/api-plan.md §1).
   app.addHook("onRequest", async (req, reply) => {
     if (req.method === "GET" || req.method === "HEAD") return;
@@ -40,7 +51,9 @@ export function buildApp() {
   app.setErrorHandler((err: FastifyError, req, reply) => {
     const status = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
     if (status >= 500) req.log.error(err);
-    const internal = status >= 500 && env.NODE_ENV === "production";
+    // Reads process.env directly so an unset NODE_ENV counts as production here.
+    const devLike = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+    const internal = status >= 500 && !devLike;
     reply.status(status).send({
       error: {
         code: CODES[status] ?? (status >= 500 ? "internal" : "bad_request"),

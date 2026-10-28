@@ -26,8 +26,11 @@ export async function lessonRoutes(api: FastifyInstance) {
   api.withTypeProvider<ZodTypeProvider>().get(
     "/lessons/:id",
     {
-      preHandler: requireUser,
-      schema: { params: z.object({ id: z.string() }), response: { 200: Lesson, 404: ErrorBody } },
+      onRequest: requireUser,
+      schema: {
+        params: z.object({ id: z.string().regex(/^[\w-]{1,64}$/) }),
+        response: { 200: Lesson, 404: ErrorBody },
+      },
     },
     async (req, reply) => {
       const { id } = req.params;

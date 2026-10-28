@@ -136,3 +136,24 @@ test("leak walk on a fresh step", async () => {
   const c = await signUp(app);
   for (const id of ["s1", "s2", "s3"]) walk((await call(c, "GET", id)).json());
 });
+
+test("malformed step id is 400, not 500", async () => {
+  const c = await signUp(app);
+  assert.equal((await call(c, "GET", "%00")).statusCode, 400);
+});
+
+test("auth runs before validation: no cookie + bad body is 401", async () => {
+  const res = await call("", "POST", "s1/attempts", { kind: "x" });
+  assert.equal(res.statusCode, 401);
+});
+
+test("empty JSON body with the JSON content-type is accepted", async () => {
+  const c = await signUp(app);
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/steps/s1/hints",
+    headers: { cookie: c, "content-type": "application/json" },
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().rung, 1);
+});
