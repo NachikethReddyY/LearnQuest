@@ -5,6 +5,8 @@ import { z } from "zod";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import { env } from "./env.ts";
 import { pool } from "./db/client.ts";
+import { authRoutes } from "./auth/routes.ts";
+import { lessonRoutes } from "./lessons/routes.ts";
 
 const CODES: Record<number, string> = {
   400: "bad_request",
@@ -56,6 +58,8 @@ export function buildApp() {
 
   app.register(
     async (api) => {
+      api.register(authRoutes);
+      api.register(lessonRoutes);
       api.get(
         "/healthz",
         { schema: { response: { 200: z.object({ ok: z.literal(true) }) } } },

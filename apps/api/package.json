@@ -9,10 +9,12 @@
     "test": "node --test --test-concurrency=1 'test/**/*.test.ts'",
     "lint": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node src/db/migrate.ts"
+    "db:migrate": "node --env-file-if-exists=.env src/db/migrate.ts",
+    "db:seed": "node --env-file-if-exists=.env src/db/seed.ts"
   },
   "dependencies": {
     "@fastify/helmet": "^13.2.0",
+    "better-auth": "^1.7.14",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",
     "fastify-type-provider-zod": "^7.0.0",
