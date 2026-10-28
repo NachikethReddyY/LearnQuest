@@ -1,0 +1,12 @@
+{
+  "name": "@learnquest/spike-pgboss-enqueue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "pg-boss": "^12.38.0"
+  }
+}
