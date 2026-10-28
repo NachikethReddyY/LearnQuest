@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* Playful system: warm white canvas, ink outlines, hard offset shadows, bright sticker colours. */
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Nunito", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-ink: #1b1b1f;
+  --color-paper: #fffdf8;
+  --color-green: #22c55e;
+  --color-green-deep: #15803d;
+  --color-blue: #3b5bff;
+  --color-sun: #ffd23f;
+  --color-pink: #ff8fb1;
+  --color-lilac: #b9a4ff;
+  --color-mint: #b6f0cf;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.font-display { font-variation-settings: "SOFT" 100; }
+
+/* outlined card with a hard offset shadow */
+.chunk {
+  border: 3px solid var(--color-ink);
+  box-shadow: 6px 6px 0 var(--color-ink);
+  border-radius: 1.5rem;
+}
+
+/* pressable pill with a "lip" underneath */
+.btn {
+  display: inline-block;
+  border-radius: 9999px;
+  padding: 0.85rem 1.75rem;
+  font-weight: 800;
+  color: white;
+  background: var(--color-green);
+  box-shadow: 0 5px 0 var(--color-green-deep);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 0 var(--color-green-deep); }
+.btn:active { transform: translateY(5px); box-shadow: 0 0 0 var(--color-green-deep); }
+
+/* shared outline + lip so every control reads as one family (no background: set per use) */
+.pill, .opt, .track { border: 3px solid var(--color-ink); }
+.pill { border-radius: 9999px; box-shadow: 0 4px 0 var(--color-ink); font-weight: 800; }
+.opt { border-radius: 0.75rem; box-shadow: 0 4px 0 var(--color-ink); }
+.track { border-radius: 9999px; overflow: hidden; background: white; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px) rotate(-1deg); }
+  40% { transform: translateX(6px) rotate(1deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+.shake { animation: shake 0.4s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-8px) rotate(var(--r, 0deg)); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+
+@keyframes pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.pop { animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+@keyframes hop {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-22px) scale(1.04, 0.96); }
+  65% { transform: translateY(0) scale(0.97, 1.03); }
+}
+.hop { animation: hop 0.6s ease-out 2; }
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+.wiggle { animation: wiggle 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.slide-in { animation: slide-in 0.3s ease-out both; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 rgb(255 210 63 / 0.9); }
+  100% { box-shadow: 0 0 0 10px rgb(255 210 63 / 0); }
+}
+.ring { animation: ring 1.4s ease-out infinite; }
+
+/* confetti: opacity 0 at rest so reduced-motion (animation: none) shows nothing */
+@keyframes burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0) scale(0.6); }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--rot)) scale(1); }
+}
+.confetti { position: absolute; width: 10px; height: 14px; border: 2px solid var(--color-ink); border-radius: 3px; opacity: 0; animation: burst 0.95s ease-out both; }
+
+.opt { transition: transform 0.1s, box-shadow 0.1s; }
+.opt:enabled:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--color-ink); }
+.opt:enabled:active { transform: translateY(4px); box-shadow: 0 0 0 var(--color-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
