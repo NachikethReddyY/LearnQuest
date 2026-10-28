@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
+    "@learnquest/player-core": "workspace:*",
+    "@monaco-editor/react": "^4.7.0",
+    "@radix-ui/react-slider": "^1.6.1",
+    "monaco-editor": "^0.57.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

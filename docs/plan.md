@@ -210,7 +210,7 @@ pg-boss keeps its own job tables. Mastery work is not in `lesson_jobs`.
 
 **Stretch tables and columns** (added by their WP's migration): `child_profiles`, `parental_consents`, `review_schedule(learner_id, step_id)`, `badges(learner_id, badge_slug)`, `usage_quotas`, `provider_settings`, `lessons.embed_allowed_origins`, `learners.kind = child` with its check.
 
-**Lesson response** (`GET /lessons/:id`): `{id, title, concepts[], steps:[{id, idx, title, conceptIds, hintCount}], labels:{reconstructed:true}}`. No source, no file states, no prompts.
+**Lesson response** (`GET /lessons/:id`): `{id, title, concepts[], steps:[{id, idx, title, conceptIds, hintCount, state}], labels:{reconstructed:true}}`. `state` is the active learner's `step_progress.state` (`predicting` if no row), so the player can resume in one call. No source, no file states, no prompts.
 
 ---
 
@@ -283,9 +283,10 @@ Replay is built in `player-core` from hunks; no LLM is involved. Narration: `scr
 - `GET /worlds` · `GET /worlds/:slug/concepts` · `GET /lessons?world=` (published only) · `GET /lessons/:id` (§7)
 - `GET /steps/:id` → `{prompt, state, explanationStyle, skipOffered, beforeFiles | null}`. `beforeFiles` is returned only when the previous step is `revealed` or `skipped`, or for step 1.
 - `POST /steps/:id/attempts` → `200 {attemptId, correct, feedback, missedConcepts, hintsUsed, state}`. `409` if the state is `revealed` or `skipped`, or if `hinting` with `attempt_allowed = false` (take the next rung first).
-- `POST /steps/:id/hints` → `{rung, text}`. Allowed in `predicting` or `hinting`. `409` when all rungs are used.
+- `POST /steps/:id/hints` → `{rung, text, eliminate?}`. `eliminate` (MCQ rung 1 only) is the index of the distractor to cross out, picked by the API deterministically from the non-answer options (no schema change); never the answer. Allowed in `predicting` or `hinting`. `409` when all rungs are used.
 - `POST /steps/:id/skip` → `{state:"skipped"}`. Always available until revealed. Writes an `attempts` row with `kind=skip`.
-- `GET /steps/:id/reveal` → `{hunks, explanations:{workedExample, practice, inferred:true}, source:{repo, sha, path}}`. `409` unless the state is `revealed` or `skipped`.
+- `GET /steps/:id/reveal` → `{answer, hunks, explanations:{workedExample, practice, inferred:true}, source:{repo, sha, path}}`. `answer` is `{type:"mcq", index}` or `{type:"cloze", text}`, so the prompt can mark it. `409` unless the state is `revealed` or `skipped`.
+- Narration MP3s are static files (`/audio/<lesson>/<step>.mp3`), not gated by the API. The client requests one only after reveal or skip (§12).
 - `GET /me/progress` · `GET /me/next?world=` → `{lessonId, conceptId, reason}`
 - `POST /lessons/import` (author; body `{repo, sha}`; repo not on the allow-list → 400) → `202 {jobId}` · `GET /jobs/:id/events` (SSE, creator only)
 - `GET /author/lessons?status=draft` (author only) · `POST /lessons/:id/publish` · `POST /lessons/:id/unpublish` (author)
@@ -406,7 +407,7 @@ Already dropped: MinIO (filesystem locally, R2 in cloud). MP4 export is Won't.
 - Replays are **reconstructed from a diff**, not recorded. Badge: "Reconstructed replay".
 - AI explanations of *why* the author wrote something are **inferred**. Label them.
 - Seeking is bounded by snapshot spacing (K), not O(1).
-- **The step gate is friction, not a security boundary.** The commit is public, so the answer can be read from git. Its purpose is learning, not secrecy.
+- **The step gate is friction, not a security boundary.** The commit is public, so the answer can be read from git. Its purpose is learning, not secrecy. The same holds for narration MP3s: they are static files that anyone can fetch, and the player simply does not request one before reveal.
 - Evidence supports "attempt before answer" but does not test this product. S2 tests it, weakly.
 - Competitors (Scrimba, DeepWiki, Code Wiki, Pocket Flow, CodeTour): the gap is in search, not proof that nobody built it.
 
