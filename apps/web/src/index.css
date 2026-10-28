@@ -118,3 +118,30 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Lesson player: typing caret drawn as a Monaco decoration (read-only editors hide the real one). */
+@keyframes lq-blink { 50% { opacity: 0; } }
+.lq-caret::before {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  margin-right: -2px;
+  vertical-align: text-bottom;
+  background: var(--color-blue);
+  animation: lq-blink 1s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lq-caret::before { animation: none; }
+}
+
+/* Lesson player windows: morph between rects (never while dragging) and tuck into the dock. */
+.win-morph {
+  transition:
+    left 0.26s cubic-bezier(0.2, 1.2, 0.4, 1),
+    top 0.26s cubic-bezier(0.2, 1.2, 0.4, 1),
+    width 0.26s cubic-bezier(0.2, 1.2, 0.4, 1),
+    height 0.26s cubic-bezier(0.2, 1.2, 0.4, 1),
+    transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s linear;
+}

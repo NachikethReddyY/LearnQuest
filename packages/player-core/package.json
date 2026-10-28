@@ -1,0 +1,20 @@
+{
+  "name": "@learnquest/player-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "node --test 'src/**/*.test.ts'",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "diff-match-patch": "^1.0.5"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/node": "^26.6.5",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2"
+  }
+}
