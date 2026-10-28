@@ -1,0 +1,32 @@
+# Depot CI Migration
+# Source: .github/workflows/ci.yml
+#
+# Changes made:
+# - Changed runs-on from "blacksmith-2vcpu-ubuntu-2404-arm" to "depot-ubuntu-latest" in job "check"
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: depot-ubuntu-latest # was: blacksmith-2vcpu-ubuntu-2404-arm. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - uses: useblacksmith/checkout@v1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec turbo run lint test build
