@@ -121,7 +121,7 @@ export default function PredictDemo() {
                 disabled={out || bad || done}
                 style={{ animationDelay: `${i * 70}ms` }}
                 className={`opt rise px-4 py-3 font-mono font-medium ${
-                  good ? "pop bg-green text-white" : bad ? "shake bg-pink/60 line-through" : out ? "bg-ink/10 text-ink/30 line-through" : "bg-white"
+                  good ? "pop bg-green text-white" : bad ? "shake bg-pink/60" : out ? "bg-ink/10 text-ink/30 line-through" : "bg-white"
                 }`}
               >
                 {o}
