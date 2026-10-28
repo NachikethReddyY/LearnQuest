@@ -234,7 +234,7 @@ export default function PlayerPage() {
                 Step {cur + 1} of {N}
               </p>
               <h3 className="font-display text-xl font-black">{step.title}</h3>
-              <p className="mt-2 font-semibold">{step.summary}</p>
+              <p className="mt-2 font-semibold">{step.explanations.workedExample}</p>
               <nav aria-label="Steps" className="mt-5">
                 <ol className="flex flex-col gap-2">
                   {lesson.steps.map((s, i) => (
