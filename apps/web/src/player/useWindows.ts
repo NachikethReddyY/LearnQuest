@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 export type WinId = "instructions" | "code";
 export type WinState = "open" | "minimized" | "closed";
 export type Rect = { x: number; y: number; w: number; h: number };
-export type Win = Rect & { state: WinState; z: number };
+// zoom: the size while zoomed, kept apart so un-zooming restores the normal rect and re-zooming restores this one.
+export type Win = Rect & { state: WinState; z: number; zoom?: Rect };
 
 const MIN_W = 320;
 const MIN_H = 240;
@@ -14,6 +15,25 @@ type Desk = Size & { ox: number; oy: number; vw: number; vh: number }; // deskto
 export type Fill = { id: WinId; kind: "zoom" | "full" } | null;
 
 const bounds = (s: Size): Size => ({ w: s.w, h: Math.max(0, s.h - DOCK) });
+
+export type Dir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+export type Kind = "move" | Dir;
+
+/** Resizes from the edges or corners named in `dir`; the opposite side stays put and the size stops at the minimum. */
+function resizeRect(s: Rect, dx: number, dy: number, dir: Dir, b: Size): Rect {
+  let { x, y, w, h } = s;
+  if (dir.includes("e")) w = s.w + dx;
+  if (dir.includes("w")) {
+    x = Math.max(0, Math.min(s.x + dx, s.x + s.w - MIN_W));
+    w = s.x + s.w - x;
+  }
+  if (dir.includes("s")) h = s.h + dy;
+  if (dir.includes("n")) {
+    y = Math.max(0, Math.min(s.y + dy, s.y + s.h - MIN_H));
+    h = s.y + s.h - y;
+  }
+  return clampRect({ x, y, w, h }, b, true);
+}
 
 /** Keeps a rect inside the bounds; when resizing, the size gives way and the position stays. */
 function clampRect(r: Rect, b: Size, resize = false): Rect {
@@ -50,7 +70,9 @@ export function useWindows(desktop: RefObject<HTMLElement | null>, task: boolean
       const o = el.getBoundingClientRect();
       setSize({ ...s, ox: o.left, oy: o.top, vw: document.documentElement.clientWidth, vh: window.innerHeight });
       setWins((o) =>
-        Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, ...clampRect(v, bounds(s)) }])),
+        Object.fromEntries(
+          Object.entries(o).map(([k, v]) => [k, { ...v, ...clampRect(v, bounds(s)), zoom: v.zoom && clampRect(v.zoom, bounds(s)) }]),
+        ),
       );
     });
     ro.observe(el);
@@ -62,20 +84,25 @@ export function useWindows(desktop: RefObject<HTMLElement | null>, task: boolean
   const patch = (id: WinId, fn: (w: Win) => Partial<Win>) => setWins((o) => ({ ...o, [id]: { ...(o[id] ?? base(id)), ...fn(o[id] ?? base(id)) } }));
 
   const front = (id: WinId) => patch(id, () => ({ z: ++zTop.current }));
-  const change = (id: WinId, kind: "move" | "resize", dx: number, dy: number, b: Size, from?: Rect) =>
-    patch(id, (cur) => {
-      const s = from ?? cur;
-      return clampRect(kind === "move" ? { ...s, x: s.x + dx, y: s.y + dy } : { ...s, w: s.w + dx, h: s.h + dy }, b, kind === "resize");
+  /** Moves or resizes from `from`; while zoomed the change goes to the zoom rect, otherwise to the normal rect. */
+  const change = (id: WinId, kind: Kind, dx: number, dy: number, b: Size, from: Rect, zoomed: boolean) =>
+    patch(id, () => {
+      const next = kind === "move" ? clampRect({ ...from, x: from.x + dx, y: from.y + dy }, b) : resizeRect(from, dx, dy, kind, b);
+      return zoomed ? { zoom: next } : next;
     });
+  /** The zoomed rect: the last size the user gave it while zoomed, or the whole desktop. */
+  const zoomOf = (id: WinId): Rect => {
+    const b = bounds(size);
+    return wins[id]?.zoom ?? { x: GAP, y: GAP, w: b.w - 2 * GAP, h: b.h - 2 * GAP };
+  };
 
-  /** Rect to draw: a zoomed window fills the desktop, a full-screen one the whole viewport. */
+  /** Rect to draw: a zoomed window uses its zoom rect, a full-screen one the whole viewport. */
   const rect = (id: WinId): Win | undefined => {
     if (!size.w) return undefined;
     const w = get(id);
     if (fill?.id !== id) return w;
     if (fill.kind === "full") return { ...w, x: -size.ox, y: -size.oy, w: size.vw, h: size.vh, z: 3000 };
-    const b = bounds(size);
-    return { ...w, x: GAP, y: GAP, w: b.w - 2 * GAP, h: b.h - 2 * GAP, z: 1000 };
+    return { ...w, ...zoomOf(id), z: 1000 };
   };
   const ids: WinId[] = task ? ["instructions", "code"] : ["code"];
   const frontId = ids.filter((i) => get(i).state === "open").sort((a, b) => get(b).z - get(a).z)[0] as WinId | undefined;
@@ -85,7 +112,7 @@ export function useWindows(desktop: RefObject<HTMLElement | null>, task: boolean
   };
 
   return {
-    fill,
+    fill: enabled ? fill : null, // the stacked phone layout has no full screen; the state returns when the window widens again
     dragging,
     frontId,
     state: (id: WinId) => get(id).state,
@@ -102,14 +129,15 @@ export function useWindows(desktop: RefObject<HTMLElement | null>, task: boolean
     toggleZoom: (id: WinId) => toggleFill(id, "zoom"),
     toggleFull: (id: WinId) => toggleFill(id, "full"),
     /** Pointer drag (move or resize). Window-level listeners, so it tracks outside the element. */
-    drag: (id: WinId, kind: "move" | "resize", e: ReactPointerEvent) => {
-      if (fill?.id === id || e.button !== 0) return;
+    drag: (id: WinId, kind: Kind, e: ReactPointerEvent) => {
+      if ((fill?.kind === "full" && fill.id === id) || e.button !== 0) return;
       e.preventDefault();
-      const start = get(id);
+      const zoomed = fill?.id === id;
+      const start = zoomed ? zoomOf(id) : get(id);
       const b = bounds(size);
       const x0 = e.clientX;
       const y0 = e.clientY;
-      const move = (ev: PointerEvent) => change(id, kind, ev.clientX - x0, ev.clientY - y0, b, start);
+      const move = (ev: PointerEvent) => change(id, kind, ev.clientX - x0, ev.clientY - y0, b, start, zoomed);
       const up = () => {
         setDragging(false);
         window.removeEventListener("pointermove", move);
@@ -121,8 +149,10 @@ export function useWindows(desktop: RefObject<HTMLElement | null>, task: boolean
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
     },
-    nudge: (id: WinId, kind: "move" | "resize", dx: number, dy: number) => {
-      if (fill?.id !== id) change(id, kind, dx, dy, bounds(size));
+    nudge: (id: WinId, kind: Kind, dx: number, dy: number) => {
+      if (fill?.kind === "full" && fill.id === id) return;
+      const zoomed = fill?.id === id;
+      change(id, kind, dx, dy, bounds(size), zoomed ? zoomOf(id) : get(id), zoomed);
     },
   };
 }
