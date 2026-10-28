@@ -1,6 +1,11 @@
 // Import this before any ../src module: env.ts reads process.env when it is first imported.
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL ??= "postgres://learnquest:learnquest@localhost:5432/learnquest_test";
+// Tests truncate every table, so they read TEST_DATABASE_URL (never DATABASE_URL) and refuse a non-_test database.
+process.env.DATABASE_URL =
+  process.env.TEST_DATABASE_URL ?? "postgres://learnquest:learnquest@localhost:5432/learnquest_test";
+if (!new URL(process.env.DATABASE_URL).pathname.endsWith("_test")) {
+  throw new Error("Refusing to run tests: the test database name must end with _test");
+}
 process.env.BETTER_AUTH_SECRET ??= "test-only-secret-not-for-production-0123456789";
 
 import { beforeEach } from "node:test";

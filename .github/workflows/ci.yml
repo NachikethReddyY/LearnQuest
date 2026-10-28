@@ -12,7 +12,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://learnquest:learnquest@localhost:5432/learnquest_test
+      TEST_DATABASE_URL: postgres://learnquest:learnquest@localhost:5432/learnquest_test
       BETTER_AUTH_SECRET: ci-test-secret-not-for-production-0123456789
     services:
       postgres:
