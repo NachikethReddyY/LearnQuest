@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { FOCUS } from "./ui";
-import type { Rect } from "./useWindows";
+import type { Kind, Rect } from "./useWindows";
 
 const MS = 260; // keep in sync with .win-morph in index.css
 
@@ -19,8 +19,8 @@ type Props = {
   onZoom(): void;
   onFull(): void;
   onFront(): void;
-  onDrag(kind: "move" | "resize", e: PointerEvent): void;
-  onNudge(kind: "move" | "resize", dx: number, dy: number): void;
+  onDrag(kind: Kind, e: PointerEvent): void;
+  onNudge(kind: Kind, dx: number, dy: number): void;
   onPointerMove?(): void;
   titleExtra?: ReactNode; // right side of the title bar (not a drag area)
   children: ReactNode;
@@ -35,19 +35,33 @@ const glyphs = {
 
 function Light({ kind, label, color, disabled, onClick }: { kind: keyof typeof glyphs; label: string; color: string; disabled?: boolean; onClick(): void }) {
   return (
-    <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className={`grid size-6 place-items-center rounded-full disabled:opacity-40 ${FOCUS}`}>
-      <span className={`grid size-4 place-items-center rounded-full border-2 border-ink ${color}`}>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 10 10"
-          className="size-3 fill-none stroke-ink stroke-[1.8] opacity-0 group-hover/lights:opacity-100 group-has-focus-visible/lights:opacity-100"
-        >
-          {glyphs[kind]}
-        </svg>
+    <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className={`grid size-6 place-items-center rounded-full ${FOCUS}`}>
+      <span className={`grid size-4 place-items-center rounded-full border-2 border-ink ${disabled ? "bg-neutral-300" : color}`}>
+        {!disabled && (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 10 10"
+            className="size-3 fill-none stroke-ink stroke-[1.8] opacity-0 group-hover/lights:opacity-100 group-has-focus-visible/lights:opacity-100"
+          >
+            {glyphs[kind]}
+          </svg>
+        )}
       </span>
     </button>
   );
 }
+
+// Corners sit over the lines' ends; the edges are the lines between them.
+const HANDLES: [Kind, string, string][] = [
+  ["nw", "top-0 left-0 size-3", "cursor-nwse-resize"],
+  ["ne", "top-0 right-0 size-3", "cursor-nesw-resize"],
+  ["sw", "bottom-0 left-0 size-3", "cursor-nesw-resize"],
+  ["se", "bottom-0 right-0 size-3", "cursor-nwse-resize"],
+  ["n", "top-0 inset-x-3 h-2", "cursor-ns-resize"],
+  ["s", "bottom-0 inset-x-3 h-2", "cursor-ns-resize"],
+  ["w", "inset-y-3 left-0 w-2", "cursor-ew-resize"],
+  ["e", "inset-y-3 right-0 w-2", "cursor-ew-resize"],
+];
 
 const STEP = 24;
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-STEP, 0], ArrowRight: [STEP, 0], ArrowUp: [0, -STEP], ArrowDown: [0, STEP] };
@@ -87,7 +101,7 @@ export default function Window(p: Props) {
     const d = ARROWS[e.key];
     if (!d) return;
     e.preventDefault();
-    p.onNudge(e.shiftKey ? "resize" : "move", d[0], d[1]);
+    p.onNudge(e.shiftKey ? "se" : "move", d[0], d[1]);
   };
   const onBarDown = (e: PointerEvent) => {
     if (rect && !(e.target as HTMLElement).closest("[data-nodrag]")) p.onDrag("move", e);
@@ -152,17 +166,16 @@ export default function Window(p: Props) {
         </div>
       </div>
       {p.children}
-      {rect && !p.fill && (
-        <span
-          aria-hidden="true"
-          onPointerDown={(e) => p.onDrag("resize", e)}
-          className="absolute right-0 bottom-0 z-20 grid size-6 cursor-nwse-resize touch-none place-items-end p-0.5"
-        >
-          <svg viewBox="0 0 12 12" className="size-3 fill-none stroke-ink stroke-2 [stroke-linecap:round]">
-            <path d="M11 3L3 11M11 7l-4 4" />
-          </svg>
-        </span>
-      )}
+      {rect &&
+        p.fill !== "full" &&
+        HANDLES.map(([dir, pos, cursor]) => (
+          <span
+            key={dir}
+            aria-hidden="true"
+            onPointerDown={(e) => p.onDrag(dir, e)}
+            className={`absolute ${pos} z-20 touch-none ${cursor}`}
+          />
+        ))}
     </section>
   );
 }

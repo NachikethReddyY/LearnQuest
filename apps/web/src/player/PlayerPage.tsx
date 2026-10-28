@@ -8,7 +8,7 @@ import Dock from "./Dock";
 import Explorer from "./Explorer";
 import MenuBar from "./MenuBar";
 import { stepIndexAt, useReplay } from "./useReplay";
-import { useWindows, type WinId } from "./useWindows";
+import { useWindows, type Kind, type WinId } from "./useWindows";
 import { FOCUS } from "./ui";
 
 const KEYS: [string, string][] = [
@@ -55,6 +55,7 @@ const MODE = modeParam === "task" || modeParam === "video" ? modeParam : lesson.
 const icons = {
   instructions: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
   code: <path d="M9 7l-5 5 5 5M15 7l5 5-5 5" />,
+  play: <path d="M8 5v14l11-7z" />,
   sidebar: <path d="M4 5h16v14H4zM9 5v14" />,
 };
 const Icon = ({ k, cls = "size-5" }: { k: keyof typeof icons; cls?: string }) => (
@@ -159,15 +160,15 @@ export default function PlayerPage() {
     onZoom: () => W.toggleZoom(id),
     onFull: () => W.toggleFull(id),
     onFront: () => W.front(id),
-    onDrag: (k: "move" | "resize", e: React.PointerEvent) => W.drag(id, k, e),
-    onNudge: (k: "move" | "resize", dx: number, dy: number) => W.nudge(id, k, dx, dy),
+    onDrag: (k: Kind, e: React.PointerEvent) => W.drag(id, k, e),
+    onNudge: (k: Kind, dx: number, dy: number) => W.nudge(id, k, dx, dy),
   });
   const codeLabel = task ? "Code" : "Player";
   const dockItem = (id: WinId, label: string, tone: string) => ({
     id,
     label,
     tone,
-    icon: icons[id],
+    icon: !task && id === "code" ? icons.play : icons[id], // video lessons show a player, not code
     running: W.state(id) !== "closed",
     pressed: W.state(id) === "open",
     onClick: () => (W.state(id) === "open" ? W.setState(id, "minimized") : W.open(id)),
