@@ -2,3 +2,4 @@ docs/notes/
 node_modules/
 dist/
 .turbo/
+.env

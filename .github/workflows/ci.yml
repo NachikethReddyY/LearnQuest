@@ -11,6 +11,21 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://learnquest:learnquest@localhost:5432/learnquest_test
+      BETTER_AUTH_SECRET: ci-test-secret-not-for-production-0123456789
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: learnquest
+          POSTGRES_PASSWORD: learnquest
+          POSTGRES_DB: learnquest_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U learnquest"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
