@@ -105,7 +105,7 @@ body {
   100% { outline: 10px solid rgb(255 210 63 / 0); }
 }
 .ring { animation: ring 1.4s ease-out infinite; }
-/* the pulse animates outline, which would hide the focus ring, so pause it while focused */
+/* keep the focus outline visible: the pulse animates outline too */
 .ring:focus-visible { animation: none; }
 
 /* confetti: opacity 0 at rest so reduced-motion (animation: none) shows nothing */

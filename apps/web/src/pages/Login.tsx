@@ -18,13 +18,18 @@ export default function Login() {
     setBusy(true);
     setError(null);
     const name = email.split("@")[0] || "Learner";
-    const result =
-      action === "in"
-        ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ email, password, name });
-    setBusy(false);
-    if (result.error) setError(result.error.message ?? "Something went wrong. Try again.");
-    else location.assign("/play");
+    try {
+      const result =
+        action === "in"
+          ? await authClient.signIn.email({ email, password })
+          : await authClient.signUp.email({ email, password, name });
+      if (result.error) setError(result.error.message ?? "Something went wrong. Try again.");
+      else location.assign("/play");
+    } catch {
+      setError("Can't reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function onSubmit(e: FormEvent) {

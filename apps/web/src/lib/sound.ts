@@ -19,18 +19,23 @@ function tone(type: OscillatorType, from: number, to: number, peak: number, leng
 
 const KEY = "lq-sound";
 
-// Stored per browser. Storage can be blocked, so fall back to sound on.
-export function isSoundOn() {
+// Remembered per browser. Storage can be blocked, so the module copy is the source of truth for this page.
+let on = (() => {
   try {
     return localStorage.getItem(KEY) !== "off";
   } catch {
     return true;
   }
+})();
+
+export function isSoundOn() {
+  return on;
 }
 
-export function setSoundOn(on: boolean) {
+export function setSoundOn(next: boolean) {
+  on = next;
   try {
-    localStorage.setItem(KEY, on ? "on" : "off");
+    localStorage.setItem(KEY, next ? "on" : "off");
   } catch {
     /* storage blocked: the setting lasts for this page only */
   }
@@ -38,7 +43,7 @@ export function setSoundOn(on: boolean) {
 
 // A "blop": a round sine that drops in pitch fast, plus a tiny high tick on the attack so it reads as a click.
 export function blip(pitch: number) {
-  if (!isSoundOn()) return;
+  if (!on) return;
   try {
     ctx ??= new AudioContext();
     if (ctx.state === "suspended") void ctx.resume();
