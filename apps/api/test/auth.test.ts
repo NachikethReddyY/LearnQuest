@@ -1,4 +1,4 @@
-import { PASSWORD, signUp } from "./helpers.ts";
+import { PASSWORD, code, signUp, trpc } from "./helpers.ts";
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../src/app.ts";
@@ -8,7 +8,7 @@ after(() => app.close());
 
 test("sign-up, session, sign-out, then protected route is 401", async () => {
   const cookie = await signUp(app);
-  const ok = await app.inject({ method: "GET", url: "/api/lessons/lesson-1", headers: { cookie } });
+  const ok = await trpc(app, cookie).q("lessons.get", { id: "lesson-1" });
   assert.equal(ok.statusCode, 200);
 
   const session = await app.inject({ method: "GET", url: "/api/auth/get-session", headers: { cookie } });
@@ -17,9 +17,9 @@ test("sign-up, session, sign-out, then protected route is 401", async () => {
   const out = await app.inject({ method: "POST", url: "/api/auth/sign-out", headers: { cookie }, payload: {} });
   assert.equal(out.statusCode, 200);
 
-  const after = await app.inject({ method: "GET", url: "/api/lessons/lesson-1", headers: { cookie } });
+  const after = await trpc(app, cookie).q("lessons.get", { id: "lesson-1" });
   assert.equal(after.statusCode, 401);
-  assert.equal(after.json().error.code, "unauthorized");
+  assert.equal(code(after), "UNAUTHORIZED");
 });
 
 test("session cookie is httpOnly", async () => {

@@ -1,12 +1,11 @@
 import { sql } from "drizzle-orm";
-import type { FastifyInstance } from "fastify";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { requireUser } from "../auth/guards.ts";
+import { protectedProcedure, router } from "../trpc/trpc.ts";
 import { db } from "../db/client.ts";
 import { streak, week } from "./streak.ts";
 
-const ErrorBody = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
+const notFound = (message: string) => new TRPCError({ code: "NOT_FOUND", message });
 const Origin = z.enum(["official", "community", "ai"]);
 const Course = z.object({ slug: z.string(), title: z.string(), lessonsDone: z.number(), lessonsTotal: z.number() });
 const PathCard = z.object({
@@ -124,11 +123,8 @@ async function pathCards(learnerId: string, official: boolean) {
   return rows;
 }
 
-export async function progressRoutes(api: FastifyInstance) {
-  const r = api.withTypeProvider<ZodTypeProvider>();
-
-  r.get("/me/home", { onRequest: requireUser, schema: { response: { 200: Home } } }, async (req) => {
-    const me = req.learnerId;
+const homeQuery = protectedProcedure.output(Home).query(async ({ ctx }) => {
+    const me = ctx.learnerId;
 
     // shortcut: assumes the DB session zone is UTC (true on Neon and local docker), so created_at is UTC.
     const { rows: days } = await db.execute<{ day: string; solved: number; xp: number }>(sql`
@@ -217,51 +213,34 @@ export async function progressRoutes(api: FastifyInstance) {
     };
   });
 
-  r.post(
-    "/paths/:slug/enroll",
-    {
-      onRequest: requireUser,
-      schema: {
-        params: z.object({ slug: z.string().regex(/^[\w-]{1,64}$/) }),
-        response: { 204: z.null(), 404: ErrorBody },
-      },
-    },
-    async (req, reply) => {
+const enroll = protectedProcedure.input(Slug).mutation(async ({ ctx, input }) => {
       // Private paths are enrollable only by their owner.
       const { rows } = await db.execute(sql`
         INSERT INTO enrollments (learner_id, path_id)
         SELECT l.id, p.id FROM paths p, learners l
-        WHERE p.slug = ${req.params.slug} AND l.id = ${req.learnerId}
+        WHERE p.slug = ${input.slug} AND l.id = ${ctx.learnerId}
           AND (p.visibility = 'public' OR p.owner_id = l.user_id)
         ON CONFLICT DO NOTHING
         RETURNING 1`);
       if (rows.length === 0) {
         const { rows: found } = await db.execute(sql`
-          SELECT 1 FROM paths p JOIN learners l ON l.id = ${req.learnerId}
-          WHERE p.slug = ${req.params.slug} AND (p.visibility = 'public' OR p.owner_id = l.user_id)`);
+          SELECT 1 FROM paths p JOIN learners l ON l.id = ${ctx.learnerId}
+          WHERE p.slug = ${input.slug} AND (p.visibility = 'public' OR p.owner_id = l.user_id)`);
         if (found.length === 0) {
-          return reply.status(404).send({ error: { code: "not_found", message: "Path not found" } });
+          throw notFound("Path not found");
         }
       }
-      return reply.status(204).send(null);
-    },
-  );
+  });
 
   // Visible = public, or owned by the caller.
-  r.get(
-    "/courses/:slug",
-    {
-      onRequest: requireUser,
-      schema: { params: Slug, response: { 200: CourseDetail, 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      const me = req.learnerId;
+const courseGet = protectedProcedure.input(Slug).output(CourseDetail).query(async ({ ctx, input }) => {
+      const me = ctx.learnerId;
       const {
         rows: [course],
       } = await db.execute<{ id: string; slug: string; title: string; description: string; origin: z.infer<typeof Origin> }>(sql`
         SELECT w.id, w.slug, w.title, w.description, w.origin FROM worlds w
-        WHERE w.slug = ${req.params.slug} AND (w.visibility = 'public' OR w.owner_id = ${myUser(me)})`);
-      if (!course) return reply.status(404).send({ error: { code: "not_found", message: "Course not found" } });
+        WHERE w.slug = ${input.slug} AND (w.visibility = 'public' OR w.owner_id = ${myUser(me)})`);
+      if (!course) throw notFound("Course not found");
 
       const { rows: lessonRows } = await db.execute<z.infer<typeof Lesson>>(sql`
         SELECT l.slug, l.title, l.level, ${lessonDone(me)} AS done, ${lessonTotal} AS total
@@ -269,25 +248,22 @@ export async function progressRoutes(api: FastifyInstance) {
         WHERE l.world_id = ${course.id} AND l.status = 'published'
         ORDER BY l.level, l.position, l.id`);
       return { slug: course.slug, title: course.title, description: course.description, origin: course.origin, lessons: lessonRows };
-    },
-  );
+  });
 
   // scope: official = public official paths, community = public other paths, mine = paths I own.
-  r.get(
-    "/paths",
-    {
-      onRequest: requireUser,
-      schema: {
-        querystring: z.object({
-          scope: z.enum(["official", "community", "mine"]).default("official"),
-          q: z.string().max(100).optional(),
-        }),
-        response: { 200: z.array(PathListItem) },
-      },
-    },
-    async (req) => {
-      const me = req.learnerId;
-      const { scope, q } = req.query;
+const pathList = protectedProcedure
+  .input(
+    z
+      .object({
+      scope: z.enum(["official", "community", "mine"]).default("official"),
+      q: z.string().max(100).optional(),
+    })
+    .prefault({}),
+  )
+  .output(z.array(PathListItem))
+  .query(async ({ ctx, input }) => {
+      const me = ctx.learnerId;
+      const { scope, q } = input;
       const scoped = {
         official: sql`p.visibility = 'public' AND p.origin = 'official'`,
         community: sql`p.visibility = 'public' AND p.origin <> 'official'`,
@@ -308,17 +284,10 @@ export async function progressRoutes(api: FastifyInstance) {
         ORDER BY learners DESC, p.created_at DESC
         LIMIT 50`);
       return rows;
-    },
-  );
+  });
 
-  r.get(
-    "/paths/:slug",
-    {
-      onRequest: requireUser,
-      schema: { params: Slug, response: { 200: PathDetail, 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      const me = req.learnerId;
+const pathGet = protectedProcedure.input(Slug).output(PathDetail).query(async ({ ctx, input }) => {
+      const me = ctx.learnerId;
       const {
         rows: [path],
       } = await db.execute<{ id: string; slug: string; title: string; tagline: string; origin: z.infer<typeof Origin>; visibility: "private" | "public"; mine: boolean; enrolled: boolean }>(sql`
@@ -326,8 +295,8 @@ export async function progressRoutes(api: FastifyInstance) {
           COALESCE(p.owner_id = ${myUser(me)}, false) AS mine,
           EXISTS (SELECT 1 FROM enrollments e WHERE e.path_id = p.id AND e.learner_id = ${me}) AS enrolled
         FROM paths p
-        WHERE p.slug = ${req.params.slug} AND (p.visibility = 'public' OR p.owner_id = ${myUser(me)})`);
-      if (!path) return reply.status(404).send({ error: { code: "not_found", message: "Path not found" } });
+        WHERE p.slug = ${input.slug} AND (p.visibility = 'public' OR p.owner_id = ${myUser(me)})`);
+      if (!path) throw notFound("Path not found");
 
       const { rows } = await db.execute<{
         course_slug: string;
@@ -367,22 +336,15 @@ export async function progressRoutes(api: FastifyInstance) {
         enrolled: path.enrolled,
         courses: [...courses.values()],
       };
-    },
-  );
+  });
 
   // Owner only. Publishes the path and the courses it contains that the same user owns.
-  r.post(
-    "/paths/:slug/publish",
-    {
-      onRequest: requireUser,
-      schema: { params: Slug, response: { 204: z.null(), 404: ErrorBody } },
-    },
-    async (req, reply) => {
+const publish = protectedProcedure.input(Slug).mutation(async ({ ctx, input }) => {
       const { rows } = await db.execute(sql`
-        WITH me AS (SELECT user_id AS id FROM learners WHERE id = ${req.learnerId}),
+        WITH me AS (SELECT user_id AS id FROM learners WHERE id = ${ctx.learnerId}),
         p AS (
           UPDATE paths SET visibility = 'public'
-          WHERE slug = ${req.params.slug} AND owner_id = (SELECT id FROM me)
+          WHERE slug = ${input.slug} AND owner_id = (SELECT id FROM me)
           RETURNING id
         ),
         w AS (
@@ -392,34 +354,29 @@ export async function progressRoutes(api: FastifyInstance) {
           RETURNING id
         )
         SELECT id FROM p`);
-      if (rows.length === 0) return reply.status(404).send({ error: { code: "not_found", message: "Path not found" } });
-      return reply.status(204).send(null);
-    },
-  );
+      if (rows.length === 0) throw notFound("Path not found");
+  });
 
   // Empty body is a no-op. COALESCE keeps any field that was not sent.
-  r.patch(
-    "/me",
-    {
-      onRequest: requireUser,
-      schema: {
-        body: z
-          .object({
-            timezone: TimeZone.optional(),
-            dailyGoalXp: z.union([z.literal(30), z.literal(50), z.literal(100)]).optional(),
-          })
-          .nullish(),
-        response: { 204: z.null() },
-      },
-    },
-    async (req, reply) => {
-      const { timezone, dailyGoalXp } = req.body ?? {};
+const meUpdate = protectedProcedure
+  .input(
+    z
+      .object({
+        timezone: TimeZone.optional(),
+        dailyGoalXp: z.union([z.literal(30), z.literal(50), z.literal(100)]).optional(),
+      })
+      .nullish(),
+  )
+  .mutation(async ({ ctx, input }) => {
+      const { timezone, dailyGoalXp } = input ?? {};
       await db.execute(sql`
         UPDATE learners
         SET timezone = COALESCE(${timezone ?? null}, timezone),
           daily_goal_xp = COALESCE(${dailyGoalXp ?? null}, daily_goal_xp)
-        WHERE id = ${req.learnerId}`);
-      return reply.status(204).send(null);
-    },
-  );
-}
+        WHERE id = ${ctx.learnerId}`);
+  });
+
+export const homeRouter = router({ get: homeQuery });
+export const pathsRouter = router({ list: pathList, get: pathGet, enroll, publish });
+export const coursesRouter = router({ get: courseGet });
+export const meRouter = router({ update: meUpdate });

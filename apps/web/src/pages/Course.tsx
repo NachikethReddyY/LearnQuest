@@ -1,5 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useApi, type CourseData } from "../lib/api";
+import { isNotFound, trpc } from "../lib/trpc";
 import TopNav from "../components/TopNav";
 import { Page, PipEmpty, Spinner } from "../components/Bits";
 
@@ -7,13 +8,13 @@ const offsets = ["ml-0", "ml-10 sm:ml-16", "ml-16 sm:ml-28", "ml-10 sm:ml-16"];
 
 export default function Course() {
   const { slug } = useParams({ from: "/courses/$slug" });
-  const { data, error } = useApi<CourseData>(`/api/courses/${slug}`);
+  const { data, error } = useApi(`course:${slug}`, () => trpc.courses.get.query({ slug }));
 
   let body;
   if (error) {
     body = (
       <PipEmpty img="pip-oops">
-        {error.status === 404 ? "We couldn't find that course." : "Couldn't load this course."}{" "}
+        {isNotFound(error) ? "We couldn't find that course." : "Couldn't load this course."}{" "}
         <Link to="/explore" className="underline">Explore paths</Link>
       </PipEmpty>
     );

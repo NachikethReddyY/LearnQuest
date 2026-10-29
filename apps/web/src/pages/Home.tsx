@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { api, enroll, useApi, type HomeData, type PathCardData } from "../lib/api";
+import { useApi, type HomeData, type PathCardData } from "../lib/api";
+import { trpc } from "../lib/trpc";
 import TopNav from "../components/TopNav";
 import { AiBadge, Bar, Page, PipEmpty, Spinner } from "../components/Bits";
 
@@ -87,7 +88,7 @@ function PathAction({ p, onDone, label }: { p: PathCardData; onDone: () => void;
         onClick={() => {
           setBusy(true);
           setErr(false);
-          enroll(p.slug).then(onDone, () => setErr(true)).finally(() => setBusy(false));
+          trpc.paths.enroll.mutate({ slug: p.slug }).then(onDone, () => setErr(true)).finally(() => setBusy(false));
         }}
       >
         {label}
@@ -147,10 +148,10 @@ function YourPath({ p }: { p: HomeData["paths"][number] }) {
 }
 
 export default function Home() {
-  const { data, error, reload } = useApi<HomeData>("/api/me/home");
+  const { data, error, reload } = useApi("home", () => trpc.home.get.query());
   useEffect(() => {
-    // fire-and-forget; the endpoint may not exist yet
-    api("/api/me", { method: "PATCH", body: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }).catch(() => {});
+    // fire-and-forget
+    trpc.me.update.mutate({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).catch(() => {});
   }, []);
 
   return (

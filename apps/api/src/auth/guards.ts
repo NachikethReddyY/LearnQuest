@@ -1,21 +1,14 @@
 import { eq } from "drizzle-orm";
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { IncomingHttpHeaders } from "node:http";
 import { db } from "../db/client.ts";
 import { learners } from "../db/schema.ts";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "./auth.ts";
 
-declare module "fastify" {
-  interface FastifyRequest {
-    learnerId: string;
-  }
-}
-
-export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
-  const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-  if (!session) {
-    return reply.status(401).send({ error: { code: "unauthorized", message: "Sign in required" } });
-  }
+// Returns the signed-in learner's id (creating the learner row on first use), or null without a session.
+export async function resolveLearnerId(headers: IncomingHttpHeaders): Promise<string | null> {
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(headers) });
+  if (!session) return null;
   const find = () => db.select({ id: learners.id }).from(learners).where(eq(learners.userId, session.user.id));
   let [learner] = await find();
   if (!learner) {
@@ -23,5 +16,5 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
     await db.insert(learners).values({ userId: session.user.id }).onConflictDoNothing();
     [learner] = await find();
   }
-  req.learnerId = learner!.id;
+  return learner!.id;
 }

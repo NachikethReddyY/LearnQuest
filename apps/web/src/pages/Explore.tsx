@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { enroll, useApi, type ExplorePath } from "../lib/api";
+import { useApi, type ExplorePath } from "../lib/api";
+import { trpc } from "../lib/trpc";
 import TopNav from "../components/TopNav";
 import { AiBadge, Page, PipEmpty, Spinner } from "../components/Bits";
 
@@ -20,7 +21,7 @@ function Row({ p, onDone }: { p: ExplorePath; onDone: () => void }) {
           <span className="pill bg-mint px-4 py-1.5 text-sm">Joined ✓</span>
         ) : (
           <button type="button" disabled={busy} className="btn !px-5 !py-2 text-sm disabled:opacity-60"
-            onClick={() => { setBusy(true); enroll(p.slug).then(onDone).catch(() => {}).finally(() => setBusy(false)); }}>
+            onClick={() => { setBusy(true); trpc.paths.enroll.mutate({ slug: p.slug }).then(onDone).catch(() => {}).finally(() => setBusy(false)); }}>
             Join
           </button>
         )}
@@ -42,7 +43,7 @@ export default function Explore() {
     const t = setTimeout(() => setDq(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
-  const { data, error, loading, reload } = useApi<ExplorePath[]>(`/api/paths?scope=${scope}${dq ? `&q=${encodeURIComponent(dq)}` : ""}`);
+  const { data, error, loading, reload } = useApi(`paths:${scope}:${dq}`, () => trpc.paths.list.query({ scope, q: dq || undefined }));
 
   return (
     <>

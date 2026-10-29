@@ -1,8 +1,7 @@
 import { and, asc, eq, or, sql } from "drizzle-orm";
-import type { FastifyInstance } from "fastify";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { requireUser } from "../auth/guards.ts";
+import { protectedProcedure, router } from "../trpc/trpc.ts";
 import { db } from "../db/client.ts";
 import { lessons, stepProgress, steps } from "../db/schema.ts";
 
@@ -20,33 +19,25 @@ const Lesson = z.object({
   ),
 });
 
-const ErrorBody = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
-
-export async function lessonRoutes(api: FastifyInstance) {
-  api.withTypeProvider<ZodTypeProvider>().get(
-    "/lessons/:id",
-    {
-      onRequest: requireUser,
-      schema: {
-        params: z.object({ id: z.string().regex(/^[\w-]{1,64}$/) }),
-        response: { 200: Lesson, 404: ErrorBody },
-      },
-    },
-    async (req, reply) => {
-      const { id } = req.params;
+export const lessonsRouter = router({
+  get: protectedProcedure
+    .input(z.object({ id: z.string().regex(/^[\w-]{1,64}$/) }))
+    .output(Lesson)
+    .query(async ({ ctx, input }) => {
+      const { id } = input;
       const [lesson] = await db
         .select()
         .from(lessons)
         .where(and(or(eq(lessons.id, id), eq(lessons.slug, id)), eq(lessons.status, "published")));
       if (!lesson?.currentVersionId) {
-        return reply.status(404).send({ error: { code: "not_found", message: "Lesson not found" } });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found" });
       }
       const rows = await db
         .select({ id: steps.id, idx: steps.idx, pub: steps.public, hintCount: sql<number>`jsonb_array_length(${steps.secret}->'hints')`, state: stepProgress.state })
         .from(steps)
         .leftJoin(
           stepProgress,
-          and(eq(stepProgress.stepId, steps.id), eq(stepProgress.learnerId, req.learnerId)),
+          and(eq(stepProgress.stepId, steps.id), eq(stepProgress.learnerId, ctx.learnerId)),
         )
         .where(eq(steps.lessonVersionId, lesson.currentVersionId))
         .orderBy(asc(steps.idx));
@@ -61,6 +52,5 @@ export async function lessonRoutes(api: FastifyInstance) {
           state: r.state ?? "predicting",
         })),
       };
-    },
-  );
-}
+    }),
+});
