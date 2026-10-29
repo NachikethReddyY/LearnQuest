@@ -2,6 +2,7 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Rea
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type { SeekResult } from "@learnquest/player-core";
 import "./monaco";
+import Loader from "../components/Loader";
 
 export type EditorHandle = { show(r: SeekResult): void; focus(): void };
 
@@ -74,6 +75,7 @@ export default function EditorPane({ ref, transportRef, viewPath, overlay }: Pro
   return (
     <div className="relative h-[65dvh] min-w-0 flex-none lg:h-auto lg:min-h-0 lg:flex-1">
       <Editor
+        loading={<div className="grid h-full place-items-center"><Loader label="Opening the editor" /></div>}
         language={langOf(viewPath ?? active)}
         theme="vs"
         onMount={onMount}

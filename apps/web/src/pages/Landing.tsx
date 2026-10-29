@@ -23,9 +23,10 @@ export default function Landing() {
         <a href="/" className="font-display text-3xl font-black tracking-tight">
           Learn<span className="text-blue">Quest</span>
         </a>
-        <nav className="flex items-center gap-6 text-sm font-extrabold">
-          <a href="#loop" className="hidden hover:text-blue sm:block">How it works</a>
-          <a href="#try" className="btn !px-5 !py-2">Try it</a>
+        <nav className="flex items-center gap-3 text-sm font-extrabold">
+          <a href="#loop" className="pill hidden bg-white px-5 py-2 sm:block">How it works</a>
+          <a href="/login" className="pill bg-white px-5 py-2">Sign in</a>
+          <a href="/login" className="btn !px-5 !py-2">Try it</a>
         </nav>
       </header>
 
@@ -40,7 +41,7 @@ export default function Landing() {
               learn, the smarter the next step.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
-              <a href="#try" className="btn text-lg">Play a step</a>
+              <a href="/play" className="btn !px-6 !py-2.5 text-base">Play a step</a>
               <span className="pill bg-white px-5 py-2 text-sm">Lessons landing soon</span>
             </div>
           </div>
@@ -128,7 +129,7 @@ export default function Landing() {
         <section className="border-t-[3px] border-ink bg-blue py-24 text-center text-white">
           <img src="/img/finale.png" alt="Pip leaping with confetti" className="mx-auto mb-6 w-full max-w-xl px-6" />
           <h2 className="mx-auto max-w-2xl px-6 font-display text-5xl font-black tracking-tight">Ready to take a guess?</h2>
-          <a href="#try" className="btn mt-8 text-lg">Play a step</a>
+          <a href="/play" className="btn mt-8 text-lg">Play a step</a>
         </section>
       </main>
 

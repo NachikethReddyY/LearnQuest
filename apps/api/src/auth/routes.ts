@@ -14,6 +14,8 @@ export async function authRoutes(api: FastifyInstance) {
       for (const [k, v] of Object.entries(req.headers)) {
         if (v !== undefined) headers.append(k, Array.isArray(v) ? v.join(",") : v);
       }
+      // Replace the client's own value: Better Auth reads this header for the rate limit key.
+      headers.set("x-forwarded-for", req.ip);
       const res = await auth.handler(
         new Request(url, {
           method: req.method,

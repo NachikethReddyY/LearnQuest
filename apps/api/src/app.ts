@@ -18,11 +18,11 @@ const CODES: Record<number, string> = {
   429: "rate_limited",
 };
 
-export function buildApp() {
+export function buildApp(opts: { trustProxy?: string | false } = {}) {
   const app = Fastify({
     logger: env.NODE_ENV === "test" ? false : { level: "info" },
     genReqId: (req) => String(req.headers["x-request-id"] ?? randomUUID()),
-    trustProxy: true,
+    trustProxy: opts.trustProxy ?? env.TRUSTED_PROXY ?? false,
   });
 
   app.setValidatorCompiler(validatorCompiler);
