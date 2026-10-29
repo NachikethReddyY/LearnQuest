@@ -11,5 +11,19 @@ services:
       - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - pgdata:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://learnquest:learnquest@postgres:5432/learnquest
+      BETTER_AUTH_SECRET: local-dev-secret-at-least-32-characters-long
+      PUBLIC_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:3000:3000"
+
 volumes:
   pgdata:

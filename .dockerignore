@@ -1,0 +1,10 @@
+**/node_modules
+**/.turbo
+**/.env
+.git
+.claude
+.macroscope
+.github
+.DS_Store
+docs
+spikes
