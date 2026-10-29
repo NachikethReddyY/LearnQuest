@@ -4,6 +4,7 @@ import "./index.css";
 import Landing from "./pages/Landing";
 import { authClient } from "./lib/auth";
 import { blip } from "./lib/sound";
+import Loader from "./components/Loader";
 
 const PlayerPage = lazy(() => import("./player/PlayerPage"));
 const DiffPage = lazy(() => import("./player/DiffPage"));
@@ -42,6 +43,6 @@ document.addEventListener("click", (e) => {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Suspense fallback={<p role="status" className="p-6 font-bold">Loading…</p>}>{page}</Suspense>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center"><Loader label="Loading your quest" /></div>}>{page}</Suspense>
   </StrictMode>,
 );

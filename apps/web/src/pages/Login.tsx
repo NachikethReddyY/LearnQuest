@@ -47,7 +47,8 @@ export default function Login() {
         <a href="/" className="pill bg-white px-4 py-2 text-sm">Back to home</a>
       </header>
 
-      <main className="mx-auto grid min-h-[calc(100vh-6rem)] max-w-6xl items-center gap-12 px-6 pb-16 lg:grid-cols-[1fr_1fr]">
+      <main className={`mx-auto grid min-h-[calc(100vh-6rem)] max-w-6xl items-center gap-12 px-6 pb-16 ${data ? "" : "lg:grid-cols-[1fr_1fr]"}`}>
+        {!data && (
         <section className="rise hidden lg:block">
           <h1 className="font-display text-6xl font-black leading-[0.98] tracking-tight">
             {isIn ? (
@@ -64,6 +65,7 @@ export default function Login() {
             Your quest log is waiting. Progress saves as you go. Predict first, then watch.
           </p>
         </section>
+        )}
 
         <div className="rise relative mx-auto w-full max-w-md">
           {data && (
@@ -81,6 +83,8 @@ export default function Login() {
               </div>
             </div>
           )}
+          {!data && (
+          <>
           <span className="pill relative z-10 -mb-4 mx-auto block w-fit bg-pink px-4 py-1 text-sm">
             {isIn ? "welcome back!" : "new here? hi!"}
           </span>
@@ -167,6 +171,8 @@ export default function Login() {
             alt="Pip waving hello"
             className="pointer-events-none absolute -bottom-12 -right-16 hidden w-32 select-none lg:block"
           />
+          </>
+          )}
         </div>
       </main>
     </div>

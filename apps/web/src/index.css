@@ -99,9 +99,10 @@ body {
 }
 .rise { animation: rise 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
 
+/* animates outline, not box-shadow, so a .btn's own lip shadow survives the pulse */
 @keyframes ring {
-  0% { box-shadow: 0 0 0 0 rgb(255 210 63 / 0.9); }
-  100% { box-shadow: 0 0 0 10px rgb(255 210 63 / 0); }
+  0% { outline: 0 solid rgb(255 210 63 / 0.9); }
+  100% { outline: 10px solid rgb(255 210 63 / 0); }
 }
 .ring { animation: ring 1.4s ease-out infinite; }
 
@@ -111,6 +112,32 @@ body {
   100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--rot)) scale(1); }
 }
 .confetti { position: absolute; width: 10px; height: 14px; border: 2px solid var(--color-ink); border-radius: 3px; opacity: 0; animation: burst 0.95s ease-out both; }
+
+/* Loader: code blocks press in turn (one press per 2.1s cycle; each block's delay staggers it). */
+@keyframes loader-press {
+  0%, 100% { transform: translateY(0); box-shadow: 0 6px 0 var(--color-ink); }
+  12% { transform: translateY(5px); box-shadow: 0 0 0 var(--color-ink); }
+  24% { transform: translateY(0); box-shadow: 0 6px 0 var(--color-ink); }
+}
+.loader-block {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 60px;
+  border: 3px solid var(--color-ink);
+  border-radius: 14px;
+  box-shadow: 0 6px 0 var(--color-ink);
+  font-family: var(--font-mono);
+  font-weight: 900;
+  font-size: 18px;
+  animation: loader-press 2.1s infinite;
+}
+
+@keyframes loader-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+.loader-dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--color-ink); animation: loader-dot 0.9s infinite ease-in-out; }
 
 .opt { transition: transform 0.1s, box-shadow 0.1s; }
 .opt:enabled:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--color-ink); }
