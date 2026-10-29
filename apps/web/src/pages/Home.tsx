@@ -174,9 +174,9 @@ function YourPath({ p }: { p: HomeData["paths"][number] }) {
 export default function Home() {
   const { data, error, reload } = useApi("home", () => trpc.home.get.query());
   useEffect(() => {
-    // fire-and-forget
-    trpc.me.update.mutate({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).catch(() => {});
-  }, []);
+    // Stats are counted in the stored timezone, so refetch once it is saved.
+    trpc.me.update.mutate({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).then(reload, () => {});
+  }, [reload]);
 
   return (
     <>

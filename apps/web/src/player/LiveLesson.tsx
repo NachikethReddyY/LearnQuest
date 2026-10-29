@@ -52,6 +52,8 @@ function Steps({ lesson }: { lesson: Lesson }) {
   const stepId = lesson.steps[idx]?.id;
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bumped by Retry so the load effects run again; the machine only re-syncs (CONFLICT) while answering.
+  const [retries, setRetries] = useState(0);
   const state = snap.value as string;
 
   // Entering a step (or re-syncing after a 409) loads it; revealed or skipped steps then load their answer.
@@ -60,7 +62,7 @@ function Steps({ lesson }: { lesson: Lesson }) {
     let live = true;
     trpc.steps.get.query({ id: stepId }).then((s) => live && send({ type: "LOADED", step: s }), (e) => live && setFailed(rpcMsg(e)));
     return () => { live = false; };
-  }, [state, stepId, send]);
+  }, [state, stepId, send, retries]);
   useEffect(() => {
     if ((state !== "revealed" && state !== "skipped") || reveal || !stepId) return;
     let live = true;
@@ -69,7 +71,7 @@ function Steps({ lesson }: { lesson: Lesson }) {
       (e) => live && setFailed(rpcMsg(e)),
     );
     return () => { live = false; };
-  }, [state, reveal, stepId, send]);
+  }, [state, reveal, stepId, send, retries]);
 
   // Runs one API call; a 409 means our view is stale, so the machine reloads the step.
   const run = async (f: () => Promise<void>) => {
@@ -106,7 +108,7 @@ function Steps({ lesson }: { lesson: Lesson }) {
     panel = (
       <div role="alert" className="font-bold">
         {failed}{" "}
-        <button type="button" className="pill ml-1 bg-white px-3 py-1 text-sm" onClick={() => { setFailed(""); send({ type: "CONFLICT", msg: "" }); }}>Retry</button>
+        <button type="button" className="pill ml-1 bg-white px-3 py-1 text-sm" onClick={() => { setFailed(""); setRetries((n) => n + 1); send({ type: "CONFLICT", msg: "" }); }}>Retry</button>
       </div>
     );
   } else if (step && (state === "revealed" || state === "skipped")) {

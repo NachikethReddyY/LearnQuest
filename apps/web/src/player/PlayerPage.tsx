@@ -124,7 +124,10 @@ export function Player({ title, stepTitles, timeline, live }: Props) {
   const stepTitle = stepTitles[cur] ?? "";
   // Each reveal swaps in a longer timeline; play it from the start.
   useEffect(() => {
-    if (live?.playKey) r.play();
+    if (live?.playKey) {
+      setPicked(null); // follow the replay's active file
+      r.play();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live?.playKey]);
 
