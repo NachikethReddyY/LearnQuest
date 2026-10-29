@@ -1,33 +1,57 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useApi, type HomeData, type PathCardData } from "../lib/api";
-import { trpc } from "../lib/trpc";
+import { trpc, trpcCode } from "../lib/trpc";
 import TopNav from "../components/TopNav";
 import { AiBadge, Bar, Page, PipEmpty, Spinner } from "../components/Bits";
 
 const chips = ["Python basics", "React hooks", "SQL joins", "Git"];
 const LEAGUE_XP = 500;
 
+const aiErrors: Record<string, string> = {
+  PRECONDITION_FAILED: "Pip's AI helper isn't switched on here yet.",
+  TOO_MANY_REQUESTS: "You've sketched 5 paths today. Pip needs a nap, try again tomorrow!",
+  BAD_REQUEST: "Pip only draws coding paths. Try a language, a tool or a project idea!",
+};
+
 function LearnAnything() {
   const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const navigate = useNavigate();
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy || text.trim().length < 3) return;
+    setBusy(true);
+    setErr("");
+    trpc.paths.generate.mutate({ prompt: text.trim() }).then(
+      (r) => navigate({ to: "/courses/$slug", params: { slug: r.firstCourseSlug } }),
+      (e) => {
+        setErr(aiErrors[trpcCode(e) ?? ""] ?? "Pip dropped the pencil. Try again?");
+        setBusy(false);
+      },
+    );
+  };
   return (
-    <form onSubmit={(e) => e.preventDefault()} className="chunk mt-2 flex flex-col gap-3 bg-lilac p-4 sm:flex-row sm:items-center sm:p-5">
-      <img src="/img/pip-wave.png" alt="" className="hidden w-20 shrink-0 sm:block" />
+    <form onSubmit={submit} className="chunk mt-2 flex flex-col gap-3 bg-lilac p-4 sm:flex-row sm:items-center sm:p-5">
+      <img src={busy ? "/img/pip-think.png" : "/img/pip-wave.png"} alt="" className={`hidden w-20 shrink-0 sm:block ${busy ? "float" : ""}`} />
       <div className="min-w-0 flex-1 space-y-3">
         <label htmlFor="learn" className="block font-display text-2xl font-black">Learn anything</label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
-            id="learn" value={text} onChange={(e) => setText(e.target.value)}
+            id="learn" value={text} onChange={(e) => setText(e.target.value)} maxLength={300} disabled={busy}
             placeholder="What do you want to learn to code?"
             className="min-w-0 flex-1 rounded-xl border-[3px] border-ink bg-white px-4 py-2.5 font-semibold outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue"
           />
-          <button type="submit" disabled className="btn disabled:opacity-50" aria-describedby="soon">Generate</button>
+          <button type="submit" disabled={busy || text.trim().length < 3} className="btn disabled:opacity-50">{busy ? "Sketching…" : "Generate"}</button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((c) => (
-            <button key={c} type="button" onClick={() => setText(c)} className="pill bg-white px-3 py-1 text-sm">{c}</button>
+            <button key={c} type="button" disabled={busy} onClick={() => setText(c)} className="pill bg-white px-3 py-1 text-sm">{c}</button>
           ))}
-          <span id="soon" className="text-sm font-bold">Coming soon</span>
+        </div>
+        <div aria-live="polite" className="min-h-6 text-sm font-extrabold">
+          {busy ? "Pip is sketching your path…" : err && <span role="alert">{err}</span>}
         </div>
       </div>
     </form>

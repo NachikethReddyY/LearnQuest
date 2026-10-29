@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
-import { buildTimeline, seek } from "@learnquest/player-core";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
+import { buildTimeline, seek, type Timeline } from "@learnquest/player-core";
 import lesson from "./fixtures/lesson1";
 import EditorPane, { type EditorHandle } from "./EditorPane";
 import Window from "./Window";
@@ -10,6 +10,7 @@ import MenuBar from "./MenuBar";
 import { stepIndexAt, useReplay } from "./useReplay";
 import { useWindows, type Kind, type WinId } from "./useWindows";
 import { FOCUS } from "./ui";
+import LiveLesson from "./LiveLesson";
 
 const KEYS: [string, string][] = [
   ["Space / K", "Play or pause"],
@@ -52,6 +53,10 @@ const useDesktop = () =>
 const modeParam = new URLSearchParams(location.search).get("mode");
 const MODE = modeParam === "task" || modeParam === "video" ? modeParam : lesson.mode;
 
+// `live` = a lesson from the API: one step at a time, the instructions window holds the predict/reveal panel.
+type Live = { idx: number; panel: ReactNode; playKey: unknown };
+type Props = { title: string; stepTitles: string[]; timeline: Timeline; live?: Live };
+
 const icons = {
   instructions: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
   code: <path d="M9 7l-5 5 5 5M15 7l5 5-5 5" />,
@@ -64,9 +69,8 @@ const Icon = ({ k, cls = "size-5" }: { k: keyof typeof icons; cls?: string }) =>
   </svg>
 );
 
-export default function PlayerPage() {
-  const task = MODE === "task";
-  const timeline = useMemo(() => buildTimeline(lesson.steps.map((s) => s.input)), []);
+export function Player({ title, stepTitles, timeline, live }: Props) {
+  const task = live ? true : MODE === "task";
   const editorRef = useRef<EditorHandle>(null);
   const playRef = useRef<HTMLButtonElement>(null);
   const helpRef = useRef<HTMLDialogElement>(null);
@@ -115,9 +119,14 @@ export default function PlayerPage() {
     arm();
   };
 
-  const cur = stepIndexAt(timeline, r.t);
-  const N = lesson.steps.length;
-  const step = lesson.steps[cur];
+  const cur = live ? live.idx : stepIndexAt(timeline, r.t);
+  const N = stepTitles.length;
+  const stepTitle = stepTitles[cur] ?? "";
+  // Each reveal swaps in a longer timeline; play it from the start.
+  useEffect(() => {
+    if (live?.playKey) r.play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live?.playKey]);
 
   const onKeyDown = (e: KeyboardEvent) => {
     wake();
@@ -180,7 +189,7 @@ export default function PlayerPage() {
         <a href="/" aria-label="LearnQuest home" className={`grid min-h-6 min-w-6 place-items-center rounded-md ${FOCUS}`}>
           <img src="/img/pip-wave.png" alt="" className="size-6 object-contain" />
         </a>
-        <h1 className="flex-none font-sans text-sm font-extrabold">{lesson.title}</h1>
+        <h1 className="flex-none font-sans text-sm font-extrabold">{title}</h1>
         <MenuBar
           playing={r.playing}
           speed={r.speed}
@@ -207,13 +216,13 @@ export default function PlayerPage() {
         />
         <span className="min-w-0 flex-1 truncate font-semibold text-ink/70 max-xl:hidden">
           <span aria-hidden="true">· </span>
-          {step.title}
+          {stepTitle}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <div role="group" aria-label={`Step ${cur + 1} of ${N}`} className="flex items-center gap-1.5">
             <div aria-hidden="true" className="flex gap-0.5">
-              {lesson.steps.map((s, i) => (
-                <span key={s.id} className={`h-1.5 w-4 rounded-full border-2 border-ink ${i < cur ? "bg-green" : i === cur ? "bg-sun" : "bg-white"}`} />
+              {stepTitles.map((t, i) => (
+                <span key={i} className={`h-1.5 w-4 rounded-full border-2 border-ink ${i < cur ? "bg-green" : i === cur ? "bg-sun" : "bg-white"}`} />
               ))}
             </div>
             <span aria-hidden="true" className="text-xs font-extrabold">
@@ -230,27 +239,31 @@ export default function PlayerPage() {
         {task && (
           <Window {...winProps("instructions")} label="Instructions" title="Instructions" tone="bg-mint">
             <div className="min-h-0 flex-1 overflow-auto p-4">
-              <p className="text-sm font-extrabold text-ink/75">
-                Step {cur + 1} of {N}
-              </p>
-              <h3 className="font-display text-xl font-black">{step.title}</h3>
-              <p className="mt-2 font-semibold">{step.explanations.workedExample}</p>
-              <nav aria-label="Steps" className="mt-5">
-                <ol className="flex flex-col gap-2">
-                  {lesson.steps.map((s, i) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        aria-current={i === cur ? "step" : undefined}
-                        onClick={() => r.seek(timeline.steps[i].startT)}
-                        className={`w-full rounded-xl border-[3px] border-ink px-3 py-2 text-left text-sm font-bold ${FOCUS} ${i === cur ? "bg-sun" : "bg-paper hover:bg-mint"}`}
-                      >
-                        <span className="font-extrabold">{i + 1}.</span> {s.title}
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </nav>
+              {live ? live.panel : (
+                <>
+                  <p className="text-sm font-extrabold text-ink/75">
+                    Step {cur + 1} of {N}
+                  </p>
+                  <h3 className="font-display text-xl font-black">{stepTitle}</h3>
+                  <p className="mt-2 font-semibold">{lesson.steps[cur]?.explanations.workedExample}</p>
+                  <nav aria-label="Steps" className="mt-5">
+                    <ol className="flex flex-col gap-2">
+                      {stepTitles.map((t, i) => (
+                        <li key={i}>
+                          <button
+                            type="button"
+                            aria-current={i === cur ? "step" : undefined}
+                            onClick={() => r.seek(timeline.steps[i].startT)}
+                            className={`w-full rounded-xl border-[3px] border-ink px-3 py-2 text-left text-sm font-bold ${FOCUS} ${i === cur ? "bg-sun" : "bg-paper hover:bg-mint"}`}
+                          >
+                            <span className="font-extrabold">{i + 1}.</span> {t}
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  </nav>
+                </>
+              )}
             </div>
           </Window>
         )}
@@ -323,7 +336,7 @@ export default function PlayerPage() {
       </main>
 
       <div role="status" aria-live="polite" className="sr-only">
-        Step {cur + 1}: {step.title}
+        Step {cur + 1}: {stepTitle}
       </div>
 
       <dialog ref={aboutRef} aria-labelledby="about-h" className="chunk m-auto max-w-sm bg-paper p-5">
@@ -354,4 +367,13 @@ export default function PlayerPage() {
       </dialog>
     </div>
   );
+}
+
+const fixtureTitles = lesson.steps.map((s) => s.title);
+const fixtureTimeline = buildTimeline(lesson.steps.map((s) => s.input));
+
+export default function PlayerPage() {
+  const slug = new URLSearchParams(location.search).get("lesson");
+  // No ?lesson= : the bundled sample, for previews and offline work.
+  return slug ? <LiveLesson slug={slug} /> : <Player title={lesson.title} stepTitles={fixtureTitles} timeline={fixtureTimeline} />;
 }

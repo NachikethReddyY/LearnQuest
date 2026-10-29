@@ -121,6 +121,7 @@ test("paths.list: scopes, enrolled flag, search and visibility", async () => {
       courseCount: 1,
       learners: 0,
       enrolled: false,
+      visibility: "public",
       courses: [{ slug: "codequest", title: "Shopping Cart Basics" }],
     },
   );

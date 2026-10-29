@@ -15,6 +15,13 @@
       "when": 1793242523368,
       "tag": "0001_magenta_pepper_potts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793243758311,
+      "tag": "0002_marvelous_galactus",
+      "breakpoints": true
     }
   ]
 }

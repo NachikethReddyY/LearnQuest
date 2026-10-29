@@ -1,9 +1,9 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc/trpc.ts";
 import { db } from "../db/client.ts";
-import { attempts, hintEvents, lessons, lessonVersions, stepProgress, steps } from "../db/schema.ts";
+import { attempts, hintEvents, learners, lessons, lessonVersions, stepProgress, steps, worlds } from "../db/schema.ts";
 import { withTx } from "../db/tx.ts";
 import { gradeCloze } from "../grading/cloze.ts";
 import { gradeMcq } from "../grading/mcq.ts";
@@ -21,19 +21,27 @@ const conflict = (message: string) => new TRPCError({ code: "CONFLICT", message 
 const notFound = () => new TRPCError({ code: "NOT_FOUND", message: "Step not found" });
 
 // Loads the published step or throws NOT_FOUND.
-async function mustStep(id: string) {
-  const step = await loadStep(id);
+async function mustStep(id: string, learnerId: string) {
+  const step = await loadStep(id, learnerId);
   if (!step) throw notFound();
   return step;
 }
 
-async function loadStep(id: string) {
+async function loadStep(id: string, learnerId: string) {
   const [row] = await db
     .select({ id: steps.id, idx: steps.idx, pub: steps.public, secret: steps.secret, source: lessons.source })
     .from(steps)
     .innerJoin(lessonVersions, eq(lessonVersions.id, steps.lessonVersionId))
     .innerJoin(lessons, eq(lessons.id, lessonVersions.lessonId))
-    .where(and(eq(steps.id, id), eq(lessons.status, "published")));
+    .innerJoin(worlds, eq(worlds.id, lessons.worldId))
+    .innerJoin(learners, eq(learners.id, learnerId))
+    .where(
+      and(
+        eq(steps.id, id),
+        eq(lessons.status, "published"),
+        or(eq(worlds.visibility, "public"), eq(worlds.ownerId, learners.userId)),
+      ),
+    );
   return row;
 }
 type Step = NonNullable<Awaited<ReturnType<typeof loadStep>>>;
@@ -89,6 +97,7 @@ function mutate(
           correct: o.type === "skip" ? null : o.correct,
           hintsUsed: r.progress.rungsTaken,
           feedback: o.type === "skip" ? null : o.correct ? "Correct!" : "Not quite.",
+          missedConcepts: o.type === "skip" || o.correct ? [] : (step.secret.concepts ?? []),
         })
         .returning({ id: attempts.id });
       attemptId = row!.id;
@@ -127,7 +136,7 @@ export const stepsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const step = await mustStep(input.id);
+      const step = await mustStep(input.id, ctx.learnerId);
       const p = await readProgress(ctx.learnerId, step.id);
       return {
         id: step.id,
@@ -149,7 +158,7 @@ export const stepsRouter = router({
     .input(Id.extend({ answer: Body }))
     .output(Attempt)
     .mutation(async ({ ctx, input }) => {
-      const step = await mustStep(input.id);
+      const step = await mustStep(input.id, ctx.learnerId);
       const b = input.answer;
       if (b.kind !== step.pub.kind) throw new TRPCError({ code: "BAD_REQUEST", message: `kind must be ${step.pub.kind}` });
       const { answer, accepted } = step.secret;
@@ -172,7 +181,7 @@ export const stepsRouter = router({
     .input(Id)
     .output(Hint)
     .mutation(async ({ ctx, input }) => {
-      const step = await mustStep(input.id);
+      const step = await mustStep(input.id, ctx.learnerId);
       const out = await mutate(ctx.learnerId, step, { type: "hint" }, null);
       if ("conflict" in out) throw conflict(out.conflict);
       return hintAt(step, out.progress.rungsTaken);
@@ -182,7 +191,7 @@ export const stepsRouter = router({
     .input(Id)
     .output(z.object({ state: z.literal("skipped") }))
     .mutation(async ({ ctx, input }) => {
-      const step = await mustStep(input.id);
+      const step = await mustStep(input.id, ctx.learnerId);
       const out = await mutate(ctx.learnerId, step, { type: "skip" }, null);
       if ("conflict" in out) throw conflict(out.conflict);
       return { state: "skipped" as const };
@@ -198,11 +207,11 @@ export const stepsRouter = router({
         ]),
         hunks: z.array(z.unknown()),
         explanations: z.object({ workedExample: z.string(), practice: z.string(), inferred: z.literal(true) }),
-        source: z.object({ repo: z.string(), sha: z.string(), path: z.string() }),
+        source: z.object({ repo: z.string(), sha: z.string(), path: z.string() }).nullable(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const step = await mustStep(input.id);
+      const step = await mustStep(input.id, ctx.learnerId);
       const { state } = await readProgress(ctx.learnerId, step.id);
       if (state !== "revealed" && state !== "skipped") throw conflict("Not revealed yet");
       const s = step.secret;
@@ -213,7 +222,7 @@ export const stepsRouter = router({
             : { type: "cloze" as const, text: s.answer as string },
         hunks: s.hunks,
         explanations: { ...s.explanations, inferred: true as const },
-        source: step.source!,
+        source: step.source,
       };
     }),
 });

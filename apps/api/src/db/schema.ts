@@ -169,8 +169,10 @@ export const lessons = pgTable("lessons", {
   title: text("title").notNull(),
   level: integer("level").notNull().default(1),
   position: integer("position").notNull().default(0),
-  sourceKind: text("source_kind", { enum: ["repo", "authored"] }).notNull(),
+  sourceKind: text("source_kind", { enum: ["repo", "authored", "ai"] }).notNull(),
   source: jsonb("source").$type<LessonSource>(),
+  // Concepts the lesson should teach; the AI outline stores them here for the lazy lesson call.
+  concepts: text("concepts").array().notNull().default(sql`'{}'::text[]`),
   status: text("status", { enum: ["draft", "published", "archived"] })
     .notNull()
     .default("draft"),
@@ -201,6 +203,8 @@ export type StepSecret = {
   accepted?: string[];
   hints: { text: string; eliminate?: number }[];
   explanations: { workedExample: string; practice: string };
+  // Recorded as attempts.missed_concepts on a wrong answer (AI lessons only).
+  concepts?: string[];
 };
 
 export const steps = pgTable(

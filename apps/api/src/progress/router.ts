@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc/trpc.ts";
 import { db } from "../db/client.ts";
+import { generatePath } from "../ai/service.ts";
 import { streak, week } from "./streak.ts";
 
 const notFound = (message: string) => new TRPCError({ code: "NOT_FOUND", message });
@@ -49,6 +50,7 @@ const CourseDetail = z.object({
 });
 const PathListItem = PathCard.extend({
   enrolled: z.boolean(),
+  visibility: z.enum(["private", "public"]),
   courses: z.array(z.object({ slug: z.string(), title: z.string() })),
 });
 const PathDetail = z.object({
@@ -106,6 +108,8 @@ const complete = (l: { done: number; total: number }) => l.total > 0 && l.done >
 // The learner's user id, to compare with owner_id.
 const myUser = (me: string) => sql`(SELECT user_id FROM learners WHERE id = ${me})`;
 // A course (alias w) the learner may see: public or their own. Paths can list other people's private courses.
+// Lessons shown in lists: published, or AI drafts that are written when first played.
+const listed = sql`(l.status = 'published' OR (l.source_kind = 'ai' AND l.status = 'draft'))`;
 const visibleCourse = (me: string) => sql`(w.visibility = 'public' OR w.owner_id = ${myUser(me)})`;
 
 async function pathCards(learnerId: string, official: boolean) {
@@ -152,7 +156,7 @@ const homeQuery = protectedProcedure.output(Home).query(async ({ ctx }) => {
       JOIN paths p ON p.id = e.path_id
       JOIN path_courses pc ON pc.path_id = p.id
       JOIN worlds w ON w.id = pc.world_id
-      LEFT JOIN lessons l ON l.world_id = w.id AND l.status = 'published'
+      LEFT JOIN lessons l ON l.world_id = w.id AND ${listed}
       WHERE e.learner_id = ${me} AND ${visibleCourse(me)}
       ORDER BY e.created_at DESC, p.id, pc.position, l.level, l.position, l.id`);
 
@@ -245,7 +249,7 @@ const courseGet = protectedProcedure.input(Slug).output(CourseDetail).query(asyn
       const { rows: lessonRows } = await db.execute<z.infer<typeof Lesson>>(sql`
         SELECT l.slug, l.title, l.level, ${lessonDone(me)} AS done, ${lessonTotal} AS total
         FROM lessons l
-        WHERE l.world_id = ${course.id} AND l.status = 'published'
+        WHERE l.world_id = ${course.id} AND ${listed}
         ORDER BY l.level, l.position, l.id`);
       return { slug: course.slug, title: course.title, description: course.description, origin: course.origin, lessons: lessonRows };
   });
@@ -272,7 +276,7 @@ const pathList = protectedProcedure
       // Escape LIKE wildcards so q matches literally.
       const search = q ? sql`AND p.title ILIKE ${`%${q.replace(/[\\%_]/g, "\\$&")}%`}` : sql``;
       const { rows } = await db.execute<z.infer<typeof PathListItem>>(sql`
-        SELECT p.slug, p.title, p.tagline, p.origin,
+        SELECT p.slug, p.title, p.tagline, p.origin, p.visibility,
           (SELECT count(*) FROM path_courses pc JOIN worlds w ON w.id = pc.world_id
             WHERE pc.path_id = p.id AND ${visibleCourse(me)})::int AS "courseCount",
           (SELECT count(*) FROM enrollments e WHERE e.path_id = p.id)::int AS learners,
@@ -310,7 +314,7 @@ const pathGet = protectedProcedure.input(Slug).output(PathDetail).query(async ({
           l.id AS lesson_id, ${lessonDone(me)} AS done, ${lessonTotal} AS total
         FROM path_courses pc
         JOIN worlds w ON w.id = pc.world_id
-        LEFT JOIN lessons l ON l.world_id = w.id AND l.status = 'published'
+        LEFT JOIN lessons l ON l.world_id = w.id AND ${listed}
         WHERE pc.path_id = ${path.id} AND ${visibleCourse(me)}
         ORDER BY pc.position, l.level, l.position, l.id`);
 
@@ -377,6 +381,11 @@ const meUpdate = protectedProcedure
   });
 
 export const homeRouter = router({ get: homeQuery });
-export const pathsRouter = router({ list: pathList, get: pathGet, enroll, publish });
+const generate = protectedProcedure
+  .input(z.object({ prompt: z.string().trim().min(3).max(300) }))
+  .output(z.object({ slug: z.string(), firstCourseSlug: z.string() }))
+  .mutation(({ ctx, input }) => generatePath(ctx.learnerId, input.prompt));
+
+export const pathsRouter = router({ list: pathList, get: pathGet, enroll, publish, generate });
 export const coursesRouter = router({ get: courseGet });
 export const meRouter = router({ update: meUpdate });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useApi, type ExplorePath } from "../lib/api";
 import { trpc } from "../lib/trpc";
@@ -7,7 +7,32 @@ import { AiBadge, Page, PipEmpty, Spinner } from "../components/Bits";
 
 const tabs = [["official", "Official"], ["community", "Community"], ["mine", "Mine"]] as const;
 
-function Row({ p, onDone }: { p: ExplorePath; onDone: () => void }) {
+function Publish({ p, onDone }: { p: ExplorePath; onDone: () => void }) {
+  const [state, setState] = useState<"idle" | "confirm" | "busy" | "error">("idle");
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (state === "confirm") confirmRef.current?.focus();
+  }, [state]);
+  if (state === "idle" || state === "error")
+    return (
+      <div>
+        <button type="button" className="btn !px-5 !py-2 text-sm" onClick={() => setState("confirm")}>Publish</button>
+        {state === "error" && <p role="alert" className="mt-1 text-sm font-bold">Couldn't publish. Try again.</p>}
+      </div>
+    );
+  return (
+    <div role="group" aria-label={`Publish ${p.title}`} className="flex flex-wrap items-center gap-2">
+      <span className="text-sm font-extrabold">Make this path public?</span>
+      <button ref={confirmRef} type="button" disabled={state === "busy"} className="btn !px-4 !py-1.5 text-sm disabled:opacity-60"
+        onClick={() => { setState("busy"); trpc.paths.publish.mutate({ slug: p.slug }).then(onDone, () => setState("error")); }}>
+        Yes, publish
+      </button>
+      <button type="button" disabled={state === "busy"} className="pill bg-white px-4 py-1.5 text-sm" onClick={() => setState("idle")}>Cancel</button>
+    </div>
+  );
+}
+
+function Row({ p, onDone, scope }: { p: ExplorePath; onDone: () => void; scope: string }) {
   const [busy, setBusy] = useState(false);
   return (
     <li className="chunk bg-white p-4 sm:p-5">
@@ -17,7 +42,9 @@ function Row({ p, onDone }: { p: ExplorePath; onDone: () => void }) {
           <p className="text-sm font-semibold text-ink/70">{p.tagline}</p>
           <p className="mt-1 text-xs font-extrabold">{p.courseCount} courses · {p.learners} learners</p>
         </div>
-        {p.enrolled ? (
+        {scope === "mine" && p.visibility === "private" ? (
+          <Publish p={p} onDone={onDone} />
+        ) : p.enrolled ? (
           <span className="pill bg-mint px-4 py-1.5 text-sm">Joined ✓</span>
         ) : (
           <button type="button" disabled={busy} className="btn !px-5 !py-2 text-sm disabled:opacity-60"
@@ -67,7 +94,7 @@ export default function Explore() {
           {error ? <PipEmpty img="pip-oops">Couldn't load paths.</PipEmpty>
             : loading || !data ? <Spinner />
             : data.length === 0 ? <PipEmpty>{scope === "mine" ? "You haven't joined or made any paths yet." : "Nothing here yet."}</PipEmpty>
-            : <ul className="space-y-5">{data.map((p) => <Row key={p.slug} p={p} onDone={reload} />)}</ul>}
+            : <ul className="space-y-5">{data.map((p) => <Row key={p.slug} p={p} onDone={reload} scope={scope} />)}</ul>}
         </div>
       </Page>
     </>
