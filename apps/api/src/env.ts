@@ -8,6 +8,8 @@ const schema = z
     BETTER_AUTH_URL: z.url().optional(),
     PORT: z.coerce.number().int().positive().default(3000),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    // IP or comma-separated IPs/CIDRs of the reverse proxy in front of the API. Unset: trust no forwarded address.
+    TRUSTED_PROXY: z.string().optional(),
   })
   .transform((e) => ({ ...e, BETTER_AUTH_URL: e.BETTER_AUTH_URL ?? e.PUBLIC_ORIGIN }));
 

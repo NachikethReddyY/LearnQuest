@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import Landing from "./pages/Landing";
 import { authClient } from "./lib/auth";
+import { blip } from "./lib/sound";
 
 const PlayerPage = lazy(() => import("./player/PlayerPage"));
 const DiffPage = lazy(() => import("./player/DiffPage"));
@@ -31,6 +32,13 @@ const page =
   ) : (
     <Landing />
   );
+
+// One listener for every button, so pages need no changes. The player is skipped so sounds don't clash with its audio.
+document.addEventListener("click", (e) => {
+  if (path.startsWith("/play") || path.startsWith("/diff")) return;
+  const el = (e.target as Element | null)?.closest("button, a.btn, .pill");
+  if (el) blip(el.matches("a.btn, button[type=submit]") ? 520 : 380);
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

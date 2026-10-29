@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import * as M from "@radix-ui/react-menubar";
+import { authClient } from "../lib/auth";
 import { FOCUS, MENU_ITEM, MENU_PANEL } from "./ui";
 import { SPEEDS, type Speed } from "./useReplay";
 
@@ -34,7 +35,7 @@ const Hint = ({ children }: { children: ReactNode }) => (
   </span>
 );
 
-function Item({ label, hint, keys, disabled, onSelect }: { label: string; hint?: string; keys?: string; disabled?: boolean; onSelect(): void }) {
+function Item({ label, hint, keys, disabled, onSelect }: { label: string; hint?: string; keys?: string; disabled?: boolean; onSelect?(): void }) {
   return (
     <M.Item className={MENU_ITEM} aria-keyshortcuts={keys} disabled={disabled} onSelect={onSelect}>
       {label}
@@ -63,6 +64,22 @@ function Menu({ name, children }: { name: string; children: ReactNode }) {
 }
 
 const Sep = () => <M.Separator className="m-1 h-0.5 bg-ink/15" />;
+
+function Account() {
+  const { data } = authClient.useSession();
+  return (
+    <Menu name="Account">
+      <Item label={data?.user.email ?? "Signed in"} disabled />
+      <Sep />
+      <Item
+        label="Sign out"
+        onSelect={() => {
+          void authClient.signOut().finally(() => location.assign("/"));
+        }}
+      />
+    </Menu>
+  );
+}
 
 export default function MenuBar(p: Props) {
   const { on } = p;
@@ -120,6 +137,8 @@ export default function MenuBar(p: Props) {
           ))}
         </Menu>
       )}
+
+      <Account />
 
       <Menu name="Help">
         <Item label="Keyboard shortcuts" hint="?" keys="Shift+Slash" onSelect={on.keys} />
