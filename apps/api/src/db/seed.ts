@@ -1,13 +1,28 @@
 import { eq } from "drizzle-orm";
 import lesson1 from "../../../web/src/player/fixtures/lesson1.ts";
 import { db, pool } from "./client.ts";
-import { lessons, lessonVersions, steps, worlds } from "./schema.ts";
+import { lessons, lessonVersions, pathCourses, paths, steps, worlds } from "./schema.ts";
 
 // shortcut: seeds from the web fixture, switch to reading worlds/codequest JSON once WP11 content exists.
 export async function seed() {
   await db.transaction(async (tx) => {
-    await tx.insert(worlds).values({ slug: "codequest" }).onConflictDoNothing();
+    const course = { title: "Shopping Cart Basics", description: "Build a cart total, then test it." };
+    await tx
+      .insert(worlds)
+      .values({ slug: "codequest", ...course })
+      .onConflictDoUpdate({ target: worlds.slug, set: course });
     const [world] = await tx.select().from(worlds).where(eq(worlds.slug, "codequest"));
+
+    const path = { title: "JavaScript Foundations", tagline: "Read real code and predict what it does" };
+    await tx
+      .insert(paths)
+      .values({ slug: "js-foundations", ...path })
+      .onConflictDoUpdate({ target: paths.slug, set: path });
+    const [jsPath] = await tx.select().from(paths).where(eq(paths.slug, "js-foundations"));
+    await tx
+      .insert(pathCourses)
+      .values({ pathId: jsPath!.id, worldId: world!.id, position: 0 })
+      .onConflictDoNothing();
 
     await tx
       .insert(lessons)

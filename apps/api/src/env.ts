@@ -12,6 +12,9 @@ const schema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // IP or comma-separated IPs/CIDRs of the reverse proxy in front of the API. Unset: trust no forwarded address.
     TRUSTED_PROXY: z.string().optional(),
+    // Optional: without a key, paths.generate answers PRECONDITION_FAILED.
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
   })
   .transform((e) => ({
     ...e,

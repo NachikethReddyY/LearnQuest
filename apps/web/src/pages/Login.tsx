@@ -24,7 +24,7 @@ export default function Login() {
           ? await authClient.signIn.email({ email, password })
           : await authClient.signUp.email({ email, password, name });
       if (result.error) setError(result.error.message ?? "Something went wrong. Try again.");
-      else location.assign("/play");
+      else location.assign("/");
     } catch {
       setError("Can't reach the server. Check your connection and try again.");
     } finally {

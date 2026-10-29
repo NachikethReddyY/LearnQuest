@@ -1,4 +1,4 @@
-import { signUp } from "./helpers.ts";
+import { code, out, signUp, trpc } from "./helpers.ts";
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
@@ -21,30 +21,32 @@ function walk(v: unknown) {
 }
 
 test("401 without login", async () => {
-  const res = await app.inject({ method: "GET", url: "/api/lessons/lesson-1" });
+  const res = await trpc(app).q("lessons.get", { id: "lesson-1" });
   assert.equal(res.statusCode, 401);
+  assert.equal(code(res), "UNAUTHORIZED");
 });
 
 test("200 shape, by slug and by id, with no secret keys", async () => {
-  const cookie = await signUp(app);
-  const res = await app.inject({ method: "GET", url: "/api/lessons/lesson-1", headers: { cookie } });
+  const t = trpc(app, await signUp(app));
+  const res = await t.q("lessons.get", { id: "lesson-1" });
   assert.equal(res.statusCode, 200);
-  const body = res.json();
+  const body = out(res);
   assert.equal(body.id, "lesson-1");
   assert.equal(body.steps.length, 3);
   assert.deepEqual(body.steps[0], { id: "s1", idx: 0, title: "Add a cartTotal function", hintCount: 2, state: "predicting" });
-  walk(body);
+  walk(res.json());
 
   const [row] = await db.select().from(lessons).where(eq(lessons.slug, "lesson-1"));
-  const byId = await app.inject({ method: "GET", url: `/api/lessons/${row!.id}`, headers: { cookie } });
-  assert.deepEqual(byId.json(), body);
+  const byId = await t.q("lessons.get", { id: row!.id });
+  assert.deepEqual(out(byId), body);
 });
 
 test("unpublished lesson and unknown id are 404", async () => {
-  const cookie = await signUp(app);
+  const t = trpc(app, await signUp(app));
   await db.update(lessons).set({ status: "draft" }).where(eq(lessons.slug, "lesson-1"));
   for (const id of ["lesson-1", "nope"]) {
-    const res = await app.inject({ method: "GET", url: `/api/lessons/${id}`, headers: { cookie } });
+    const res = await t.q("lessons.get", { id });
     assert.equal(res.statusCode, 404);
+    assert.equal(code(res), "NOT_FOUND");
   }
 });

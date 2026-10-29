@@ -79,13 +79,84 @@ export const learners = pgTable("learners", {
     .notNull()
     .unique()
     .references(() => user.id, { onDelete: "cascade" }),
+  // IANA name; streak days are counted in this zone.
+  timezone: text("timezone").notNull().default("UTC"),
+  dailyGoalXp: integer("daily_goal_xp").notNull().default(50),
 });
 
+const visibility = () =>
+  text("visibility", { enum: ["private", "public"] })
+    .notNull()
+    .default("public");
+const origin = () =>
+  text("origin", { enum: ["official", "community", "ai"] })
+    .notNull()
+    .default("official");
+const ownerId = () => text("owner_id").references(() => user.id, { onDelete: "cascade" });
+
+// A world is a course in the UI.
 export const worlds = pgTable("worlds", {
   id: id(),
   slug: text("slug").notNull().unique(),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  ownerId: ownerId(),
+  visibility: visibility(),
+  origin: origin(),
   config: jsonb("config").notNull().default({}),
 });
+
+// One row per paths.generate call that reached the AI, rejected topics included; the daily limit counts these.
+export const aiGenerations = pgTable(
+  "ai_generations",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_generations_user_time").on(t.userId, t.createdAt)],
+);
+
+export const paths = pgTable("paths", {
+  id: id(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  tagline: text("tagline").notNull().default(""),
+  ownerId: ownerId(),
+  visibility: visibility(),
+  origin: origin(),
+  createdAt: createdAt(),
+});
+
+export const pathCourses = pgTable(
+  "path_courses",
+  {
+    pathId: text("path_id")
+      .notNull()
+      .references(() => paths.id, { onDelete: "cascade" }),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.pathId, t.worldId] })],
+);
+
+export const enrollments = pgTable(
+  "enrollments",
+  {
+    learnerId: text("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    pathId: text("path_id")
+      .notNull()
+      .references(() => paths.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.learnerId, t.pathId] })],
+);
 
 export const concepts = pgTable(
   "concepts",
@@ -109,8 +180,12 @@ export const lessons = pgTable("lessons", {
     .notNull()
     .references(() => worlds.id),
   title: text("title").notNull(),
-  sourceKind: text("source_kind", { enum: ["repo", "authored"] }).notNull(),
+  level: integer("level").notNull().default(1),
+  position: integer("position").notNull().default(0),
+  sourceKind: text("source_kind", { enum: ["repo", "authored", "ai"] }).notNull(),
   source: jsonb("source").$type<LessonSource>(),
+  // Concepts the lesson should teach; the AI outline stores them here for the lazy lesson call.
+  concepts: text("concepts").array().notNull().default(sql`'{}'::text[]`),
   status: text("status", { enum: ["draft", "published", "archived"] })
     .notNull()
     .default("draft"),
@@ -141,6 +216,8 @@ export type StepSecret = {
   accepted?: string[];
   hints: { text: string; eliminate?: number }[];
   explanations: { workedExample: string; practice: string };
+  // Recorded as attempts.missed_concepts on a wrong answer (AI lessons only).
+  concepts?: string[];
 };
 
 export const steps = pgTable(

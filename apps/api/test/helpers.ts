@@ -24,7 +24,7 @@ await runMigrations();
 
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE hint_events, attempts, step_progress, steps, lesson_versions, lessons, concepts, worlds, learners, verification, account, session, "user" CASCADE`,
+    sql`TRUNCATE enrollments, path_courses, paths, hint_events, attempts, step_progress, steps, lesson_versions, lessons, concepts, worlds, learners, verification, account, session, "user" CASCADE`,
   );
 });
 
@@ -43,3 +43,27 @@ export async function signUp(app: FastifyInstance, email = "a@example.com") {
   if (res.statusCode !== 200) throw new Error(`sign-up failed: ${res.statusCode} ${res.body}`);
   return res.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 }
+
+// tRPC over HTTP: queries are GET ?input=<json>, mutations are POST with the JSON input as the body.
+export function trpc(app: FastifyInstance, cookie = "") {
+  const url = (path: string) => `/api/trpc/${path}`;
+  return {
+    q: (path: string, input?: unknown) =>
+      app.inject({
+        method: "GET",
+        url: url(path) + (input === undefined ? "" : `?input=${encodeURIComponent(JSON.stringify(input))}`),
+        headers: { cookie },
+      }),
+    m: (path: string, input?: unknown, headers: Record<string, string> = {}) =>
+      app.inject({
+        method: "POST",
+        url: url(path),
+        headers: { cookie, "content-type": "application/json", ...headers },
+        payload: input === undefined ? undefined : JSON.stringify(input),
+      }),
+  };
+}
+// Unwraps a successful tRPC response.
+export const out = (res: { json(): any }) => res.json().result.data;
+// The tRPC error code of a failed response.
+export const code = (res: { json(): any }) => res.json().error.data.code as string;

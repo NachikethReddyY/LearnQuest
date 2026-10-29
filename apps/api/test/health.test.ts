@@ -1,4 +1,4 @@
-import "./helpers.ts";
+import { trpc } from "./helpers.ts";
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../src/app.ts";
@@ -33,4 +33,18 @@ test("POST with a foreign Origin is rejected with 403", async () => {
   });
   assert.equal(res.statusCode, 403);
   assert.equal(res.json().error.code, "forbidden");
+});
+
+test("tRPC mutation with a foreign Origin is rejected with 403, a matching Origin gets through to auth", async () => {
+  const t = trpc(app);
+  const bad = await t.m("me.update", {}, { origin: "https://evil.test" });
+  assert.equal(bad.statusCode, 403);
+  assert.equal(bad.json().error.code, "forbidden");
+  const ok = await t.m("me.update", {}, { origin: process.env.PUBLIC_ORIGIN ?? "http://localhost:5173" });
+  assert.equal(ok.statusCode, 401);
+});
+
+test("tRPC rejects a mutation sent as GET", async () => {
+  const res = await app.inject({ method: "GET", url: "/api/trpc/me.update" });
+  assert.equal(res.statusCode, 405);
 });

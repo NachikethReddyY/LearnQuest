@@ -8,6 +8,27 @@
       "when": 1793184011501,
       "tag": "0000_workable_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793242523368,
+      "tag": "0001_magenta_pepper_potts",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793243758311,
+      "tag": "0002_marvelous_galactus",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793244815308,
+      "tag": "0003_lowly_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
