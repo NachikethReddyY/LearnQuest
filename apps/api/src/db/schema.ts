@@ -106,6 +106,19 @@ export const worlds = pgTable("worlds", {
   config: jsonb("config").notNull().default({}),
 });
 
+// One row per paths.generate call that reached the AI, rejected topics included; the daily limit counts these.
+export const aiGenerations = pgTable(
+  "ai_generations",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_generations_user_time").on(t.userId, t.createdAt)],
+);
+
 export const paths = pgTable("paths", {
   id: id(),
   slug: text("slug").notNull().unique(),

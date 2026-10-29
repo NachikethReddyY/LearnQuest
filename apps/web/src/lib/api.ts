@@ -25,7 +25,7 @@ export function useApi<T>(key: string, run: () => Promise<T>): ApiState<T> {
     // `run` closes over the inputs that `key` encodes.
   }, [key, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  // Data stays on screen during a reload; an error only counts for the request that produced it.
+  // Data stays on screen while the same key reloads, never for a different key; an error only counts for its own request.
   const fresh = state.key === key && state.tick === tick;
-  return { data: state.data, error: fresh ? state.error : undefined, loading: !fresh, reload };
+  return { data: state.key === key ? state.data : undefined, error: fresh ? state.error : undefined, loading: !fresh, reload };
 }

@@ -6,7 +6,7 @@ import { buildTimeline, seek } from "@learnquest/player-core";
 import { db } from "../db/client.ts";
 import { withTx } from "../db/tx.ts";
 import { env } from "../env.ts";
-import { enrollments, learners, lessons, lessonVersions, pathCourses, paths, steps, worlds } from "../db/schema.ts";
+import { aiGenerations, enrollments, learners, lessons, lessonVersions, pathCourses, paths, steps, worlds } from "../db/schema.ts";
 import { generator, type LessonContext } from "./generator.ts";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -62,12 +62,18 @@ const slugify = (s: string, max: number) =>
 export async function generatePath(learnerId: string, topic: string) {
   if (!env.ANTHROPIC_API_KEY) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "AI is not configured" });
   const [me] = await db.select({ userId: learners.userId }).from(learners).where(eq(learners.id, learnerId));
-  const {
-    rows: [{ n }],
-  } = await db.execute<{ n: number }>(sql`
-    SELECT count(*)::int AS n FROM paths WHERE origin = 'ai' AND owner_id = ${me!.userId} AND created_at > now() - interval '24 hours'`);
-  // shortcut: count-then-insert is not atomic, so a burst of parallel calls can overshoot 5; add an advisory lock if abused.
-  if (n >= 5) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You can build 5 AI paths per day" });
+  // Every call that reaches Claude takes a slot, so rejected topics count too. The per-user lock makes count-then-insert atomic.
+  const allowed = await withTx(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${me!.userId}))`);
+    const {
+      rows: [{ n }],
+    } = await tx.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM ai_generations WHERE user_id = ${me!.userId} AND created_at > now() - interval '24 hours'`);
+    if (n >= 5) return false;
+    await tx.insert(aiGenerations).values({ userId: me!.userId });
+    return true;
+  });
+  if (!allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You can build 5 AI paths per day" });
 
   let outline;
   try {

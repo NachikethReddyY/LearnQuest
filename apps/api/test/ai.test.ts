@@ -99,6 +99,20 @@ test("at most 5 generated paths per rolling day", async () => {
   assert.equal(code(await t.m("paths.generate", { prompt: "learn rust" })), "TOO_MANY_REQUESTS");
 });
 
+test("rejected topics use up the daily limit too", async () => {
+  const t = trpc(app, await signUp(app));
+  generator.outline = async () => ({ notCoding: true });
+  for (let i = 0; i < 5; i++) assert.equal(code(await t.m("paths.generate", { prompt: "baking bread" })), "BAD_REQUEST");
+  generator.outline = async () => outline;
+  assert.equal(code(await t.m("paths.generate", { prompt: "learn rust" })), "TOO_MANY_REQUESTS");
+});
+
+test("a parallel burst cannot exceed the daily limit", async () => {
+  const t = trpc(app, await signUp(app));
+  const res = await Promise.all(Array.from({ length: 8 }, () => t.m("paths.generate", { prompt: "learn rust" })));
+  assert.equal(res.filter((r) => r.statusCode === 200).length, 5);
+});
+
 test("two concurrent plays write the steps once", async () => {
   const { t, lessons: ls } = await setup();
   const last = ls[2]!.slug; // no next lesson, so no background generation
@@ -114,7 +128,8 @@ test("two concurrent plays write the steps once", async () => {
   // Steps are readable by the owner and wrong answers record the step's concepts.
   const stepId = out(a).steps[0].id;
   assert.equal(out(await t.q("steps.get", { id: stepId })).kind, "mcq");
-  await t.m("steps.attempt", { id: stepId, answer: { kind: "mcq", choice: 0 } });
+  const wrong = await t.m("steps.attempt", { id: stepId, answer: { kind: "mcq", choice: 0 } });
+  assert.deepEqual([out(wrong).correct, out(wrong).missedConcepts], [false, ["reduce"]]);
   await t.m("steps.skip", { id: stepId });
   assert.equal(out(await t.q("steps.reveal", { id: stepId })).source, null);
 });

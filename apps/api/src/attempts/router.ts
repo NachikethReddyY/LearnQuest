@@ -170,7 +170,8 @@ export const stepsRouter = router({
         attemptId: out.attemptId!,
         correct,
         feedback: correct ? "Correct!" : "Not quite.",
-        missedConcepts: [],
+        // Same list the attempt row stores.
+        missedConcepts: correct ? [] : (step.secret.concepts ?? []),
         hintsUsed: out.progress.rungsTaken,
         state: out.progress.state,
         attemptAllowed: out.progress.attemptAllowed,
