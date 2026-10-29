@@ -187,6 +187,7 @@ export default function Home() {
               <section aria-labelledby="comm">
                 <div className="mb-4 flex items-baseline justify-between">
                   <h2 id="comm" className="font-display text-3xl font-black">Community</h2>
+                  <Link to="/explore" className="font-extrabold underline">See all →</Link>
                 </div>
                 {data.community.length === 0 ? <PipEmpty img="pip-sheet">No community paths yet. Be the first to share one.</PipEmpty> : (
                   <ul className="grid gap-4 sm:grid-cols-2">{data.community.slice(0, 4).map((p) => <PathTile key={p.slug} p={p} onDone={reload} />)}</ul>

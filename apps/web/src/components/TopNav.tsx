@@ -12,6 +12,7 @@ export default function TopNav({ streak, xp }: { streak?: number; xp?: number })
       </Link>
       <nav aria-label="Main" className="flex flex-wrap items-center gap-2 sm:gap-3">
         <Link to="/" className={nav} activeOptions={{ exact: true }} activeProps={{ className: "pill bg-sun px-4 py-1.5 text-sm" }}>Home</Link>
+        <Link to="/explore" className={nav} activeProps={{ className: "pill bg-sun px-4 py-1.5 text-sm" }}>Explore</Link>
         {streak !== undefined && <span className="pill bg-pink px-3 py-1.5 text-sm" title="Day streak">🔥 {streak}</span>}
         {xp !== undefined && <span className="pill bg-mint px-3 py-1.5 text-sm" title="Total XP">{xp} XP</span>}
         <button

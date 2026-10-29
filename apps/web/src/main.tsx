@@ -13,6 +13,7 @@ const DiffPage = lazy(() => import("./player/DiffPage"));
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
 const Course = lazy(() => import("./pages/Course"));
+const Explore = lazy(() => import("./pages/Explore"));
 
 // The player has its own audio, so button sounds and the toggle stay off there.
 const isQuiet = (p: string) => p.startsWith("/play") || p.startsWith("/diff");
@@ -54,6 +55,7 @@ const routeTree = root.addChildren([
   }),
   createRoute({ ...r, path: "/diff", component: () => <DiffPage /> }),
   createRoute({ ...r, path: "/courses/$slug", component: () => <Course />, beforeLoad: requireSession }),
+  createRoute({ ...r, path: "/explore", component: () => <Explore />, beforeLoad: requireSession }),
 ]);
 
 const router = createRouter({ routeTree });

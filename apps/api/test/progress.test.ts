@@ -101,6 +101,86 @@ test("GET /api/courses/:slug: published lessons only, private courses only for t
   assert.equal((await call("GET", "/api/courses/b-course", otherCookie)).statusCode, 200);
 });
 
+test("GET /api/paths: scopes, enrolled flag, search and visibility", async () => {
+  const cookie = await signUp(app, "a@example.com");
+  const otherCookie = await signUp(app, "b@example.com");
+  const otherId = await userId("b@example.com");
+  await db.insert(paths).values([
+    { slug: "community-one", title: "Async Patterns", origin: "community" },
+    { slug: "b-private", title: "B Secret", origin: "community", visibility: "private", ownerId: otherId },
+    { slug: "a-draft", title: "A Draft", origin: "community", visibility: "private", ownerId: await userId("a@example.com") },
+  ]);
+  const slugs = async (url: string, c = cookie) => (await call("GET", url, c)).json().map((p: { slug: string }) => p.slug);
+
+  assert.deepEqual(await slugs("/api/paths"), ["js-foundations"]);
+  assert.deepEqual(
+    (await call("GET", "/api/paths", cookie)).json()[0],
+    {
+      slug: "js-foundations",
+      title: "JavaScript Foundations",
+      tagline: "Read real code and predict what it does",
+      origin: "official",
+      courseCount: 1,
+      learners: 0,
+      enrolled: false,
+      courses: [{ slug: "codequest", title: "Shopping Cart Basics" }],
+    },
+  );
+  assert.deepEqual(await slugs("/api/paths?scope=community"), ["community-one"]);
+  assert.deepEqual(await slugs("/api/paths?scope=mine"), ["a-draft"]);
+  assert.deepEqual((await slugs("/api/paths?scope=mine", otherCookie)).sort(), ["b-private"]);
+  assert.deepEqual(await slugs("/api/paths?scope=community&q=ASYNC"), ["community-one"]);
+  assert.deepEqual(await slugs("/api/paths?scope=community&q=%"), []);
+  assert.equal((await call("GET", `/api/paths?q=${"x".repeat(101)}`, cookie)).statusCode, 400);
+
+  await enroll(cookie, "js-foundations");
+  const enrolled = (await call("GET", "/api/paths", cookie)).json()[0];
+  assert.equal(enrolled.enrolled, true);
+  assert.equal(enrolled.learners, 1);
+});
+
+test("GET /api/paths/:slug: private paths are 404 except to their owner", async () => {
+  const cookie = await signUp(app, "a@example.com");
+  const otherCookie = await signUp(app, "b@example.com");
+  await db.insert(paths).values({ slug: "b-private", title: "B Secret", visibility: "private", ownerId: await userId("b@example.com") });
+
+  assert.equal((await call("GET", "/api/paths/nope", cookie)).statusCode, 404);
+  assert.equal((await call("GET", "/api/paths/b-private", cookie)).statusCode, 404);
+  const mine = (await call("GET", "/api/paths/b-private", otherCookie)).json();
+  assert.deepEqual(
+    { visibility: mine.visibility, mine: mine.mine, enrolled: mine.enrolled, courses: mine.courses },
+    { visibility: "private", mine: true, enrolled: false, courses: [] },
+  );
+
+  const detail = (await call("GET", "/api/paths/js-foundations", cookie)).json();
+  assert.equal(detail.mine, false);
+  assert.deepEqual(detail.courses, [
+    { slug: "codequest", title: "Shopping Cart Basics", description: "Build a cart total, then test it.", lessonsDone: 0, lessonsTotal: 1 },
+  ]);
+  for (const step of ["s1", "s2", "s3"]) await answer(cookie, step, step === "s2" ? { kind: "cloze", text: "discount = 0" } : { kind: "mcq", choice: 1 });
+  assert.equal((await call("GET", "/api/paths/js-foundations", cookie)).json().courses[0].lessonsDone, 1);
+});
+
+test("POST /api/paths/:slug/publish: owner only, publishes the owned courses", async () => {
+  const cookie = await signUp(app, "a@example.com");
+  const otherCookie = await signUp(app, "b@example.com");
+  const otherId = await userId("b@example.com");
+  await db.insert(paths).values({ slug: "b-private", title: "B Secret", visibility: "private", ownerId: otherId });
+  const [world] = await db
+    .insert(worlds)
+    .values({ slug: "b-course", title: "B Course", visibility: "private", ownerId: otherId, origin: "community" })
+    .returning();
+  await db.insert(pathCourses).values({ pathId: await pathId("b-private"), worldId: world!.id, position: 0 });
+
+  assert.equal((await call("POST", "/api/paths/b-private/publish", cookie)).statusCode, 404);
+  assert.equal((await call("GET", "/api/paths/b-private", cookie)).statusCode, 404);
+  assert.equal((await call("POST", "/api/paths/nope/publish", otherCookie)).statusCode, 404);
+
+  assert.equal((await call("POST", "/api/paths/b-private/publish", otherCookie)).statusCode, 204);
+  assert.equal((await call("GET", "/api/paths/b-private", cookie)).json().visibility, "public");
+  assert.equal((await call("GET", "/api/courses/b-course", cookie)).statusCode, 200);
+});
+
 test("PATCH /api/me: validates timezone and goal, empty body is a no-op", async () => {
   const cookie = await signUp(app, "a@example.com");
   assert.equal((await call("PATCH", "/api/me", cookie, { timezone: "Mars/Olympus" })).statusCode, 400);
@@ -117,3 +197,23 @@ test("PATCH /api/me: validates timezone and goal, empty body is a no-op", async 
   assert.deepEqual({ timezone: after!.timezone, goal: after!.dailyGoalXp }, { timezone: "Asia/Kolkata", goal: 30 });
 });
 
+test("paths never list another user's private course", async () => {
+  const cookie = await signUp(app);
+  const other = await signUp(app, "b@example.com");
+  const [owner] = await db.execute<{ id: string }>(sql`SELECT id FROM "user" WHERE email = 'b@example.com'`).then((r) => r.rows);
+  const [hidden] = await db.insert(worlds).values({ slug: "hidden", title: "Hidden", visibility: "private", ownerId: owner!.id }).returning();
+  const [jsPath] = await db.select().from(paths).where(eq(paths.slug, "js-foundations"));
+  await db.insert(pathCourses).values({ pathId: jsPath!.id, worldId: hidden!.id, position: 1 });
+  await enroll(cookie, "js-foundations");
+
+  const home = (await get(cookie)).json();
+  assert.deepEqual(home.paths[0].courses.map((c: { slug: string }) => c.slug), ["codequest"]);
+  const list = (await app.inject({ method: "GET", url: "/api/paths", headers: { cookie } })).json();
+  assert.deepEqual(list[0].courses.map((c: { slug: string }) => c.slug), ["codequest"]);
+  assert.equal(list[0].courseCount, 1);
+  const detail = (await app.inject({ method: "GET", url: "/api/paths/js-foundations", headers: { cookie } })).json();
+  assert.equal(detail.courses.length, 1);
+  // The owner still sees it.
+  const mine = (await app.inject({ method: "GET", url: "/api/paths/js-foundations", headers: { cookie: other } })).json();
+  assert.equal(mine.courses.length, 2);
+});

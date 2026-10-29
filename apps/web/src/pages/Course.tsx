@@ -14,7 +14,7 @@ export default function Course() {
     body = (
       <PipEmpty img="pip-oops">
         {error.status === 404 ? "We couldn't find that course." : "Couldn't load this course."}{" "}
-        <Link to="/" className="underline">Back home</Link>
+        <Link to="/explore" className="underline">Explore paths</Link>
       </PipEmpty>
     );
   } else if (!data) {
