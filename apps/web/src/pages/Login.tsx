@@ -32,6 +32,17 @@ export default function Login() {
     void run(mode);
   }
 
+  async function signOut() {
+    setError(null);
+    try {
+      const { error } = await authClient.signOut();
+      if (error) throw error;
+      location.reload();
+    } catch {
+      setError("Sign out failed. Check your connection and try again.");
+    }
+  }
+
   const isIn = mode === "in";
 
   return (
@@ -75,12 +86,17 @@ export default function Login() {
                 <a href="/play" className="btn !px-5 !py-2">Continue to play</a>
                 <button
                   type="button"
-                  onClick={() => void authClient.signOut().then(() => location.reload())}
+                  onClick={() => void signOut()}
                   className="pill bg-white px-4 py-2 text-sm"
                 >
                   Sign out
                 </button>
               </div>
+              {error && (
+                <p role="alert" className="text-sm font-bold">
+                  {error}
+                </p>
+              )}
             </div>
           )}
           {!data && (

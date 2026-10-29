@@ -17,8 +17,28 @@ function tone(type: OscillatorType, from: number, to: number, peak: number, leng
   osc.stop(t + length);
 }
 
+const KEY = "lq-sound";
+
+// Stored per browser. Storage can be blocked, so fall back to sound on.
+export function isSoundOn() {
+  try {
+    return localStorage.getItem(KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function setSoundOn(on: boolean) {
+  try {
+    localStorage.setItem(KEY, on ? "on" : "off");
+  } catch {
+    /* storage blocked: the setting lasts for this page only */
+  }
+}
+
 // A "blop": a round sine that drops in pitch fast, plus a tiny high tick on the attack so it reads as a click.
 export function blip(pitch: number) {
+  if (!isSoundOn()) return;
   try {
     ctx ??= new AudioContext();
     if (ctx.state === "suspended") void ctx.resume();

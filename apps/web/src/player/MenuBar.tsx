@@ -73,8 +73,14 @@ function Account() {
       <Sep />
       <Item
         label="Sign out"
-        onSelect={() => {
-          void authClient.signOut().finally(() => location.assign("/"));
+        onSelect={async () => {
+          try {
+            const { error } = await authClient.signOut();
+            if (error) throw error;
+            location.assign("/");
+          } catch {
+            alert("Sign out failed. Check your connection and try again.");
+          }
         }}
       />
     </Menu>
