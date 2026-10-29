@@ -127,7 +127,7 @@ export function PathTile({ p, onDone, label = "Join" }: { p: PathCardData; onDon
     <li className="chunk flex flex-col gap-2 bg-white p-4">
       <h3 className="flex items-center gap-2 text-lg font-black">{p.title}{p.origin === "ai" && <AiBadge />}</h3>
       <p className="flex-1 text-sm font-semibold text-ink/70">{p.tagline}</p>
-      <p className="text-xs font-extrabold">{p.courseCount} courses · {p.learners} learners</p>
+      <p className="text-xs font-extrabold">{p.courseCount} {p.courseCount === 1 ? "course" : "courses"} · {p.learners} {p.learners === 1 ? "learner" : "learners"}</p>
       <div><PathAction p={p} onDone={onDone} label={label} /></div>
     </li>
   );
@@ -137,7 +137,7 @@ function Continue({ c }: { c: NonNullable<HomeData["continue"]> }) {
   return (
     <section className="chunk bg-mint p-5 sm:p-6" aria-label="Continue learning">
       <p className="text-sm font-extrabold">{c.path.title}</p>
-      <p className="mt-1 text-sm font-bold">Course {c.course.index} of {c.course.count}</p>
+      <p className="mt-1 text-sm font-bold">Course {c.course.index + 1} of {c.course.count}</p>
       <h2 className="font-display text-3xl font-black">{c.course.title}</h2>
       <p className="mt-3 font-extrabold">{c.lesson.title} <span className="pill ml-1 bg-white px-2 py-0.5 text-xs">Level {c.lesson.level}</span></p>
       <div className="my-3 max-w-sm"><Bar value={c.lesson.done} total={c.lesson.total} label="Lesson progress" /></div>

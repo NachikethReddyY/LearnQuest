@@ -40,7 +40,7 @@ function Row({ p, onDone, scope }: { p: ExplorePath; onDone: () => void; scope: 
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 font-display text-2xl font-black">{p.title}{p.origin === "ai" && <AiBadge />}</h2>
           <p className="text-sm font-semibold text-ink/70">{p.tagline}</p>
-          <p className="mt-1 text-xs font-extrabold">{p.courseCount} courses · {p.learners} learners</p>
+          <p className="mt-1 text-xs font-extrabold">{p.courseCount} {p.courseCount === 1 ? "course" : "courses"} · {p.learners} {p.learners === 1 ? "learner" : "learners"}</p>
         </div>
         {scope === "mine" && p.visibility === "private" ? (
           <Publish p={p} onDone={onDone} />
@@ -84,7 +84,7 @@ export default function Explore() {
                 className={`pill px-4 py-1.5 text-sm ${scope === v ? "bg-sun" : "bg-white"}`}>{label}</button>
             ))}
           </div>
-          <div className="min-w-0 flex-1 sm:max-w-xs">
+          <div className="min-w-48 flex-1 sm:max-w-xs">
             <label htmlFor="q" className="sr-only">Search paths</label>
             <input id="q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search paths"
               className="w-full rounded-xl border-[3px] border-ink bg-white px-4 py-2 font-semibold outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue" />

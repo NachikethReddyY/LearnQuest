@@ -30,7 +30,7 @@ export default function Course() {
         <section className="chunk h-fit bg-sun p-5">
           <h1 className="font-display text-4xl font-black">{data.title}</h1>
           <p className="mt-2 font-semibold">{data.description}</p>
-          <p className="mt-3 text-sm font-extrabold">{data.lessons.length} lessons</p>
+          <p className="mt-3 text-sm font-extrabold">{data.lessons.length} {data.lessons.length === 1 ? "lesson" : "lessons"}</p>
         </section>
         <div className="space-y-8 pb-32">
           {levels.map((lv) => (
