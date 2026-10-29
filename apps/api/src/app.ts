@@ -8,6 +8,7 @@ import { pool } from "./db/client.ts";
 import { authRoutes } from "./auth/routes.ts";
 import { lessonRoutes } from "./lessons/routes.ts";
 import { attemptRoutes } from "./attempts/routes.ts";
+import { progressRoutes } from "./progress/routes.ts";
 
 const CODES: Record<number, string> = {
   400: "bad_request",
@@ -73,6 +74,7 @@ export function buildApp(opts: { trustProxy?: string | false } = {}) {
       api.register(authRoutes);
       api.register(lessonRoutes);
       api.register(attemptRoutes);
+      api.register(progressRoutes);
       api.get(
         "/healthz",
         { schema: { response: { 200: z.object({ ok: z.literal(true) }) } } },

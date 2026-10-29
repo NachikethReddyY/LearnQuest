@@ -24,7 +24,7 @@ await runMigrations();
 
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE hint_events, attempts, step_progress, steps, lesson_versions, lessons, concepts, worlds, learners, verification, account, session, "user" CASCADE`,
+    sql`TRUNCATE enrollments, path_courses, paths, hint_events, attempts, step_progress, steps, lesson_versions, lessons, concepts, worlds, learners, verification, account, session, "user" CASCADE`,
   );
 });
 
