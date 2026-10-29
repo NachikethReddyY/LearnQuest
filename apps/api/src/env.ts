@@ -3,6 +3,8 @@ import { z } from "zod";
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1),
+    // Neon's pooled URL (-pooler host) is set as DATABASE_URL; the direct one is required (docs/api-plan.md §1).
+    DATABASE_URL_UNPOOLED: z.string().min(1).optional(),
     BETTER_AUTH_SECRET: z.string().min(32),
     PUBLIC_ORIGIN: z.url().default("http://localhost:5173"),
     BETTER_AUTH_URL: z.url().optional(),
@@ -11,7 +13,11 @@ const schema = z
     // IP or comma-separated IPs/CIDRs of the reverse proxy in front of the API. Unset: trust no forwarded address.
     TRUSTED_PROXY: z.string().optional(),
   })
-  .transform((e) => ({ ...e, BETTER_AUTH_URL: e.BETTER_AUTH_URL ?? e.PUBLIC_ORIGIN }));
+  .transform((e) => ({
+    ...e,
+    DATABASE_URL: e.DATABASE_URL_UNPOOLED ?? e.DATABASE_URL,
+    BETTER_AUTH_URL: e.BETTER_AUTH_URL ?? e.PUBLIC_ORIGIN,
+  }));
 
 const parsed = schema.safeParse(process.env);
 if (!parsed.success) {
