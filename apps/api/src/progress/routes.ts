@@ -39,6 +39,30 @@ const Home = z.object({
   community: z.array(PathCard),
 });
 
+const Slug = z.object({ slug: z.string().regex(/^[\w-]{1,64}$/) });
+const Lesson = z.object({ slug: z.string(), title: z.string(), level: z.number(), done: z.number(), total: z.number() });
+const CourseDetail = z.object({
+  slug: z.string(),
+  title: z.string(),
+  description: z.string(),
+  origin: Origin,
+  lessons: z.array(Lesson),
+});
+const TimeZone = z
+  .string()
+  .max(64)
+  .refine(
+    (tz) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Unknown IANA time zone" },
+  );
+
 // XP for a first (observed) correct answer, plus a bonus when no hints were used.
 const XP = sql`CASE WHEN correct THEN 10 + CASE WHEN hints_used = 0 THEN 5 ELSE 0 END ELSE 0 END`;
 
@@ -58,10 +82,22 @@ type LessonRow = {
   last_active: Date | null;
 };
 
+// Per-lesson progress over the lesson's current version; used by /me/home and the course and path reads.
+const lessonTotal = sql`(SELECT count(*) FROM steps s WHERE s.lesson_version_id = l.current_version_id)::int`;
+const lessonDone = (me: string) => sql`(SELECT count(*) FROM steps s JOIN step_progress sp ON sp.step_id = s.id
+  WHERE s.lesson_version_id = l.current_version_id AND sp.learner_id = ${me}
+    AND sp.state IN ('revealed', 'skipped'))::int`;
+const complete = (l: { done: number; total: number }) => l.total > 0 && l.done >= l.total;
+// The learner's user id, to compare with owner_id.
+const myUser = (me: string) => sql`(SELECT user_id FROM learners WHERE id = ${me})`;
+// A course (alias w) the learner may see: public or their own. Paths can list other people's private courses.
+const visibleCourse = (me: string) => sql`(w.visibility = 'public' OR w.owner_id = ${myUser(me)})`;
+
 async function pathCards(learnerId: string, official: boolean) {
   const { rows } = await db.execute<z.infer<typeof PathCard>>(sql`
     SELECT p.slug, p.title, p.tagline, p.origin,
-      (SELECT count(*) FROM path_courses pc WHERE pc.path_id = p.id)::int AS "courseCount",
+      (SELECT count(*) FROM path_courses pc JOIN worlds w ON w.id = pc.world_id
+        WHERE pc.path_id = p.id AND ${visibleCourse(learnerId)})::int AS "courseCount",
       (SELECT count(*) FROM enrollments e WHERE e.path_id = p.id)::int AS learners
     FROM paths p
     WHERE p.visibility = 'public'
@@ -96,10 +132,8 @@ export async function progressRoutes(api: FastifyInstance) {
       SELECT p.slug AS path_slug, p.title AS path_title, p.tagline, p.origin, e.created_at AS enrolled_at,
         w.slug AS course_slug, w.title AS course_title,
         l.slug AS lesson_slug, l.title AS lesson_title, l.level,
-        (SELECT count(*) FROM steps s WHERE s.lesson_version_id = l.current_version_id)::int AS total,
-        (SELECT count(*) FROM steps s JOIN step_progress sp ON sp.step_id = s.id
-          WHERE s.lesson_version_id = l.current_version_id AND sp.learner_id = ${me}
-            AND sp.state IN ('revealed', 'skipped'))::int AS done,
+        ${lessonTotal} AS total,
+        ${lessonDone(me)} AS done,
         (SELECT max(sp.updated_at) FROM steps s JOIN step_progress sp ON sp.step_id = s.id
           WHERE s.lesson_version_id = l.current_version_id AND sp.learner_id = ${me}) AS last_active
       FROM enrollments e
@@ -107,7 +141,7 @@ export async function progressRoutes(api: FastifyInstance) {
       JOIN path_courses pc ON pc.path_id = p.id
       JOIN worlds w ON w.id = pc.world_id
       LEFT JOIN lessons l ON l.world_id = w.id AND l.status = 'published'
-      WHERE e.learner_id = ${me}
+      WHERE e.learner_id = ${me} AND ${visibleCourse(me)}
       ORDER BY e.created_at DESC, p.id, pc.position, l.level, l.position, l.id`);
 
     // Group rows into path -> course -> lessons, keeping query order.
@@ -124,7 +158,6 @@ export async function progressRoutes(api: FastifyInstance) {
       if (!c) p.courses.set(row.course_slug, (c = { slug: row.course_slug, title: row.course_title, lessons: [] }));
       if (row.lesson_slug) c.lessons.push(row);
     }
-    const complete = (l: LessonRow) => l.total > 0 && l.done >= l.total;
 
     // Continue = first unfinished lesson in the most recently active path that has one.
     let next: z.infer<typeof Home>["continue"] = null;
@@ -194,6 +227,57 @@ export async function progressRoutes(api: FastifyInstance) {
           return reply.status(404).send({ error: { code: "not_found", message: "Path not found" } });
         }
       }
+      return reply.status(204).send(null);
+    },
+  );
+
+  // Visible = public, or owned by the caller.
+  r.get(
+    "/courses/:slug",
+    {
+      onRequest: requireUser,
+      schema: { params: Slug, response: { 200: CourseDetail, 404: ErrorBody } },
+    },
+    async (req, reply) => {
+      const me = req.learnerId;
+      const {
+        rows: [course],
+      } = await db.execute<{ id: string; slug: string; title: string; description: string; origin: z.infer<typeof Origin> }>(sql`
+        SELECT w.id, w.slug, w.title, w.description, w.origin FROM worlds w
+        WHERE w.slug = ${req.params.slug} AND (w.visibility = 'public' OR w.owner_id = ${myUser(me)})`);
+      if (!course) return reply.status(404).send({ error: { code: "not_found", message: "Course not found" } });
+
+      const { rows: lessonRows } = await db.execute<z.infer<typeof Lesson>>(sql`
+        SELECT l.slug, l.title, l.level, ${lessonDone(me)} AS done, ${lessonTotal} AS total
+        FROM lessons l
+        WHERE l.world_id = ${course.id} AND l.status = 'published'
+        ORDER BY l.level, l.position, l.id`);
+      return { slug: course.slug, title: course.title, description: course.description, origin: course.origin, lessons: lessonRows };
+    },
+  );
+
+  // Empty body is a no-op. COALESCE keeps any field that was not sent.
+  r.patch(
+    "/me",
+    {
+      onRequest: requireUser,
+      schema: {
+        body: z
+          .object({
+            timezone: TimeZone.optional(),
+            dailyGoalXp: z.union([z.literal(30), z.literal(50), z.literal(100)]).optional(),
+          })
+          .nullish(),
+        response: { 204: z.null() },
+      },
+    },
+    async (req, reply) => {
+      const { timezone, dailyGoalXp } = req.body ?? {};
+      await db.execute(sql`
+        UPDATE learners
+        SET timezone = COALESCE(${timezone ?? null}, timezone),
+          daily_goal_xp = COALESCE(${dailyGoalXp ?? null}, daily_goal_xp)
+        WHERE id = ${req.learnerId}`);
       return reply.status(204).send(null);
     },
   );

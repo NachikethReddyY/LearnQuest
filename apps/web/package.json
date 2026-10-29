@@ -8,6 +8,7 @@
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-menubar": "^1.2.1",
     "@radix-ui/react-slider": "^1.6.1",
+    "@tanstack/react-router": "^1.170.46",
     "@xstate/react": "^6.1.0",
     "better-auth": "^1.7.14",
     "monaco-editor": "^0.57.0",
