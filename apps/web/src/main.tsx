@@ -1,12 +1,11 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect, useRouterState } from "@tanstack/react-router";
+import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import "./index.css";
 import Landing from "./pages/Landing";
 import { authClient } from "./lib/auth";
 import { blip } from "./lib/sound";
 import Loader from "./components/Loader";
-import SoundToggle from "./components/SoundToggle";
 
 const PlayerPage = lazy(() => import("./player/PlayerPage"));
 const DiffPage = lazy(() => import("./player/DiffPage"));
@@ -15,18 +14,14 @@ const Home = lazy(() => import("./pages/Home"));
 const Course = lazy(() => import("./pages/Course"));
 const Explore = lazy(() => import("./pages/Explore"));
 
-// The player has its own audio, so button sounds and the toggle stay off there.
+// The player has its own audio, so button sounds stay off there.
 const isQuiet = (p: string) => p.startsWith("/play") || p.startsWith("/diff");
 
 function Root() {
-  const quiet = isQuiet(useRouterState({ select: (s) => s.location.pathname }));
   return (
-    <>
-      <Suspense fallback={<div className="grid min-h-screen place-items-center"><Loader label="Loading your quest" /></div>}>
-        <Outlet />
-      </Suspense>
-      {!quiet && <SoundToggle />}
-    </>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center"><Loader label="Loading your quest" /></div>}>
+      <Outlet />
+    </Suspense>
   );
 }
 
